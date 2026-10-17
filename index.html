@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Web Network Manager by Mattias</title>
+<style>
+:root {
+  --bg-color:#f0f0f0; --fg-color:#333333; --entry-bg:#ffffff;
+  --button-bg:#cccccc; --select-bg:#a0a0a0; --accent-color:#3498db;
+  --headline-color:#1a237e; --summary-color:#555555; --category-color:#4a148c;
+  --separator-color:#e0e0e0; --highlight-bg:#ffa726; --container-bg:#ffffff;
+  --border-color:#cccccc; --shadow-color:rgba(0,0,0,0.1); --badge-bg:#e8e8e8;
+  --badge-fg:#555555; --download-color:#8b949e; --overlay-color:rgba(0,0,0,0.5);
+  --error-color:#e74c3c; --warning-color:#f39c12; --info-color:#3498db; --success-color:#27ae60;
+}
+body.dark-mode {
+  --bg-color:#1e1e1e; --fg-color:#ffffff; --entry-bg:#3c3c3c;
+  --button-bg:#505050; --select-bg:#5a5a5a; --accent-color:#2ecc71;
+  --headline-color:#82b1ff; --summary-color:#b0bec5; --category-color:#ce93d8;
+  --separator-color:#3e3e42; --highlight-bg:#ffa726; --container-bg:#2d2d30;
+  --border-color:#444444; --shadow-color:rgba(0,0,0,0.3); --badge-bg:#3e3e42;
+  --badge-fg:#b0bec5; --download-color:#8b949e; --overlay-color:rgba(0,0,0,0.7);
+  --error-color:#c0392b; --warning-color:#f1c40f; --info-color:#2ecc71; --success-color:#2ecc71;
+}
+*,*::before,*::after { box-sizing:border-box; }
+html { scrollbar-gutter:stable; }
+html,body { width:100%; min-height:100vh; min-height:100dvh; margin:0; padding:0; overflow-x:hidden; }
+body { font-family:Arial,sans-serif; background:var(--bg-color); color:var(--fg-color); transition:background-color .3s,color .3s; padding:0 12px 30px; }
+.container { position:relative; width:100%; max-width:800px; background:var(--container-bg); padding:20px; margin:20px auto; border-radius:8px; box-shadow:0 2px 10px var(--shadow-color); }
+h1 { color:var(--accent-color); text-align:center; margin-top:0; }
+.subtitle { text-align:center; font-size:1.1em; margin:0 0 20px; border-bottom:2px solid var(--border-color); padding-bottom:12px; }
+.controls { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.controls .grow { flex:1 1 180px; }
+.btn { padding:8px 15px; border:1px solid var(--border-color); border-radius:4px; cursor:pointer; font-weight:bold; font-family:inherit; font-size:.9em; background:var(--button-bg); color:var(--fg-color); text-decoration:none; display:inline-block; transition:background-color .2s; }
+.btn:hover { background:var(--select-bg); }
+.btn.sm { padding:5px 10px; font-size:.82em; }
+.btn.accent { background:var(--accent-color); border-color:var(--accent-color); color:#fff; }
+.btn.accent:hover { background:color-mix(in srgb,var(--accent-color) 80%,black); }
+.btn.danger { background:var(--error-color); border-color:var(--error-color); color:#fff; }
+.btn.danger:hover { background:color-mix(in srgb,var(--error-color) 80%,black); }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible { outline:2px solid var(--accent-color); outline-offset:2px; }
+input,select,textarea { width:100%; padding:8px 10px; background:var(--entry-bg); color:var(--fg-color); border:1px solid var(--border-color); border-radius:4px; font-family:inherit; font-size:.95em; }
+textarea { resize:vertical; min-height:70px; }
+.controls select { width:auto; }
+label { display:block; font-size:.85em; color:var(--summary-color); margin:0 0 4px; }
+.count { color:var(--summary-color); font-size:.85em; margin:0 0 10px; }
+mark { background:var(--highlight-bg); color:#000; border-radius:2px; padding:0 1px; }
+
+/* Host cards */
+.host { background:var(--entry-bg); border:1px solid var(--border-color); border-left:4px solid var(--border-color); border-radius:6px; padding:12px 14px; cursor:grab; -webkit-touch-callout:none; position:relative; }
+.host.ok { border-left-color:var(--accent-color); } .host.warn { border-left-color:var(--warning-color); } .host.err { border-left-color:var(--error-color); }
+.host-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.host-name { font-size:1.1em; font-weight:bold; color:var(--headline-color); margin-right:auto; word-break:break-word; }
+.badge { font-size:.75em; padding:2px 9px; border-radius:10px; background:var(--badge-bg); color:var(--badge-fg); font-weight:bold; }
+.badge.role { background:var(--category-color); color:#fff; }
+.ip { font-family:Consolas,Monaco,monospace; font-size:.9em; background:none; border:none; padding:0; color:var(--accent-color); cursor:pointer; font-weight:bold; }
+.ip:hover { text-decoration:underline; }
+.meta { color:var(--summary-color); font-size:.85em; margin-top:6px; }
+.meta .err { color:var(--error-color); font-weight:bold; } .meta .warn { color:var(--warning-color); font-weight:bold; } .meta .ok { color:var(--success-color); }
+.links,.actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.links { gap:10px; margin-top:14px; }
+.actions { padding-top:10px; border-top:1px solid var(--separator-color); }
+.notes { margin-top:8px; font-size:.88em; color:var(--summary-color); white-space:pre-wrap; word-break:break-word; }
+.empty { text-align:center; padding:35px 10px; color:var(--summary-color); border:1px dashed var(--border-color); border-radius:6px; }
+
+/* Groups, drag, chips */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); gap:12px; }
+.group.collapsed .cards { display:none; }
+.group-head { display:flex; align-items:center; gap:8px; margin:22px 0 12px; padding-bottom:8px; border-bottom:1px solid var(--border-color); cursor:grab; user-select:none; -webkit-user-select:none; }
+.group:first-child .group-head { margin-top:0; }
+.group-head h2 { flex:1; margin:0; font-size:1.2em; color:var(--accent-color); word-break:break-word; }
+.group.dragging { opacity:.8; outline:2px dashed var(--accent-color); outline-offset:6px; border-radius:6px; }
+.host.dragging { opacity:.8; outline:2px dashed var(--accent-color); outline-offset:4px; box-shadow:0 6px 18px var(--shadow-color); transform:scale(1.02); z-index:10; }
+body.is-dragging,body.is-dragging * { cursor:grabbing !important; user-select:none; -webkit-user-select:none; }
+.emoji { margin-right:6px; }
+.addr { display:flex; flex-wrap:wrap; gap:4px 14px; margin-top:6px; }
+.ip.dns { color:var(--summary-color); }
+.chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.chip { padding:3px 9px; border:1px solid var(--border-color); border-radius:12px; background:var(--button-bg); color:var(--fg-color); font-size:.8em; cursor:pointer; font-family:inherit; }
+.chip:hover { background:var(--select-bg); }
+.chip.e { font-size:1.1em; padding:2px 7px; }
+input[type=checkbox] { width:auto; }
+.split { display:inline-flex; }
+.split .btn { border-radius:0; }
+.split .btn:first-child { border-radius:4px 0 0 4px; }
+.split .btn:last-child { border-radius:0 4px 4px 0; }
+.split .btn:only-child { border-radius:4px; }
+.split .btn + .btn { margin-left:-1px; }
+.links { display:block; margin-top:12px; border-top:1px solid var(--separator-color); }
+.ep { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px 10px; padding:8px 0; border-bottom:1px solid var(--separator-color); }
+.ep:last-child { border-bottom:none; }
+.et { display:flex; flex-direction:column; min-width:0; flex:1 1 110px; }
+.en { color:var(--headline-color); font-weight:bold; word-break:break-word; }
+.esub { color:var(--summary-color); font-size:.78em; font-family:Consolas,Monaco,monospace; word-break:break-all; }
+.tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.chip.tag { font-size:.75em; padding:1px 8px; }
+.chip.on { background:var(--accent-color); border-color:var(--accent-color); color:#fff; }
+.addr.off { opacity:.55; }
+.r { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.r input,.r select { width:auto; }
+.arow,.erow { margin-bottom:8px; }
+.emo { max-height:92px; overflow-y:auto; border:1px solid var(--separator-color); border-radius:4px; padding:4px; }
+.mono { font-family:Consolas,Monaco,monospace; font-size:.85em; }
+.logrow { display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--separator-color); font-size:.88em; }
+details.rb { margin-top:8px; font-size:.88em; }
+details.rb summary { cursor:pointer; color:var(--accent-color); font-weight:bold; }
+.ibox { background:var(--entry-bg); border-left:3px solid var(--accent-color); border-radius:4px; padding:10px 14px; margin-bottom:12px; font-size:.9em; line-height:1.5; }
+.ibox h4 { margin:0 0 6px; color:var(--accent-color); font-size:1em; }
+.ibox ul { padding-left:20px; margin:0; }
+.ibox li { margin-bottom:8px; }
+.ibox .it { color:var(--accent-color); font-weight:bold; display:block; }
+details.fs { margin-top:12px; border-top:1px solid var(--separator-color); }
+details.fs > summary { cursor:pointer; color:var(--category-color); font-weight:bold; padding:8px 0; list-style:none; user-select:none; }
+details.fs > summary::-webkit-details-marker { display:none; }
+details.fs > summary::before { content:'▸ '; }
+details.fs[open] > summary::before { content:'▾ '; }
+.fsb { padding:4px 0 6px; }
+.cl { display:flex; gap:8px; align-items:center; margin-top:5px; }
+.cl code { flex:1; font-family:Consolas,Monaco,monospace; font-size:.9em; background:var(--container-bg); border:1px solid var(--separator-color); border-radius:4px; padding:5px 8px; word-break:break-all; user-select:text; }
+.cm { color:var(--category-color); font-weight:bold; margin-top:10px; font-family:Consolas,Monaco,monospace; font-size:.9em; }
+.cmt { color:var(--category-color); font-weight:bold; }
+.srow { padding:8px 0; border-bottom:1px solid var(--separator-color); }
+.modal.wide { max-width:920px; }
+.mapsvg { display:block; margin:6px auto 0; width:100%; height:auto; max-height:65vh; }
+.mnode { fill:var(--entry-bg); stroke:var(--border-color); stroke-width:1; }
+.macc { fill:var(--accent-color); }
+.mname { font:bold 13px Arial,sans-serif; fill:var(--headline-color); }
+.maddr { font:11px Consolas,Monaco,monospace; fill:var(--summary-color); }
+.medge { stroke:var(--summary-color); stroke-width:1.5; fill:none; }
+.marrow { fill:var(--summary-color); }
+.mlabel { font:bold 11px Arial,sans-serif; fill:var(--fg-color); stroke:var(--container-bg); stroke-width:4px; paint-order:stroke; }
+.logrow.sel { background:var(--entry-bg); padding-left:8px; padding-right:8px; }
+/* Modal */
+.overlay { position:fixed; inset:0; background:var(--overlay-color); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:20px 12px; overflow-y:auto; }
+.modal { background:var(--container-bg); border:1px solid var(--border-color); border-radius:8px; width:100%; max-width:640px; padding:20px; box-shadow:0 4px 20px var(--shadow-color); }
+.modal h2 { margin:0 0 14px; color:var(--accent-color); font-size:1.3em; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border-color); padding-bottom:10px; }
+.modal h3 { color:var(--accent-color); margin:18px 0 10px; font-size:1.15em; border-bottom:1px solid var(--border-color); padding-bottom:4px; }
+.modal p,.modal li { font-size:.9em; line-height:1.5; }
+.modal ul { padding-left:20px; margin:6px 0; }
+.modal code { background:var(--entry-bg); border:1px solid var(--border-color); border-radius:3px; padding:1px 5px; font-size:.9em; }
+.x { background:none; border:none; color:var(--fg-color); font-size:1.4em; cursor:pointer; line-height:1; padding:0 4px; }
+.row { display:flex; flex-wrap:wrap; gap:10px; } .row>div { flex:1 1 200px; margin-bottom:10px; }
+.field { margin-bottom:10px; }
+.hint { font-size:.78em; color:var(--summary-color); margin-top:3px; }
+.modal-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+.modal-actions .spacer { margin-left:auto; }
+.danger-zone { border-top:2px solid var(--error-color); margin-top:20px; padding-top:12px; }
+
+/* Floating message banner */
+.message-area { position:absolute; top:0; left:0; right:0; min-height:80px; z-index:1100; border-radius:8px; padding:10px 15px; font-family:'Consolas','Monaco',monospace; font-size:.9em; font-weight:bold; line-height:1.6; text-align:left; white-space:pre-wrap; word-wrap:break-word; border:1px solid transparent; opacity:1; visibility:visible; transition:opacity .3s,visibility .3s; }
+.message-area.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+.message-area.error { background:color-mix(in srgb,var(--error-color) 10%,white); color:var(--error-color); border-color:var(--error-color); }
+.message-area.warning { background:color-mix(in srgb,var(--warning-color) 10%,white); color:var(--warning-color); border-color:var(--warning-color); }
+.message-area.info { background:color-mix(in srgb,var(--info-color) 10%,white); color:var(--info-color); border-color:var(--info-color); }
+.message-area.success { background:color-mix(in srgb,var(--success-color) 10%,white); color:var(--success-color); border-color:var(--success-color); }
+body.dark-mode .message-area.error { background:color-mix(in srgb,var(--error-color) 20%,black); }
+body.dark-mode .message-area.warning { background:color-mix(in srgb,var(--warning-color) 20%,black); }
+body.dark-mode .message-area.info { background:color-mix(in srgb,var(--info-color) 20%,black); }
+body.dark-mode .message-area.success { background:color-mix(in srgb,var(--success-color) 20%,black); }
+
+.data-config { text-align:center; margin-top:20px; }
+.data-config button { background:none; border:none; color:var(--fg-color); font-size:.85em; opacity:.7; cursor:pointer; font-family:inherit; }
+.data-config button:hover { opacity:1; text-decoration:underline; }
+footer { text-align:center; margin-top:10px; padding-top:5px; }
+footer a { color:var(--accent-color); text-decoration:none; font-weight:bold; }
+footer a:hover { text-decoration:underline; }
+footer .footer-portfolio { margin-top:8px; font-size:.85em; opacity:.7; }
+.hide { display:none !important; }
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+</head>
+<body class="dark-mode">
+<div class="container">
+  <div id="message-area" class="message-area hidden" role="status" aria-live="polite"></div>
+  <h1>Web Network Manager</h1>
+  <p class="subtitle">by Mattias</p>
+
+  <div class="controls">
+    <button class="btn accent" id="addBtn">+ Add Host</button>
+    <input class="grow" id="search" type="search" placeholder="Search name, IP, role, notes..." autocomplete="off" aria-label="Search hosts">
+    <select id="roleFilter" aria-label="Filter by role"></select>
+    <select id="netSel" class="hide" aria-label="Network"></select>
+    <button class="btn" id="mapBtn">Map</button>
+    <button class="btn" id="themeBtn" aria-label="Toggle theme">◐</button>
+    <button class="btn" id="infoBtn">Info</button>
+  </div>
+  <div class="chips hide" id="tagBar" style="margin:0 0 10px"></div>
+  <p class="count" id="count"></p>
+  <div id="hosts"></div>
+  <div class="data-config"><button id="resetOrder">Reset order</button></div>
+</div>
+
+<div class="data-config"><button id="dataBtn">Data Config</button></div>
+<footer>
+  <a href="https://github.com/mattiasmilger/Web-Network-Manager-by-Mattias" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+  <div class="footer-portfolio">More projects? <a href="https://mattiasmilger.github.io/" target="_blank" rel="noopener noreferrer">Visit my portfolio</a></div>
+</footer>
+
+<div class="overlay hide" id="overlay"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<input type="file" id="importFile" accept="application/json,.json" class="hide">
+<script>
+/* ===== Constants and state ===== */
+/* Saved-data format: every save writes SCHEMA. To change the format, bump SCHEMA and add
+   MIGRATIONS[<previous version>] (see "Data model"). A build never overwrites newer data. */
+const STORE = { hosts: 'netmanager.hosts', layout: 'netmanager.layout', links: 'netmanager.links', schema: 'netmanager.schema', backup: 'netmanager.backup', theme: 'netmanager.theme' };
+const SCHEMA = 1;
+const MESSAGE_DURATION_SHORT = 2000, MESSAGE_DURATION_LONG = 3500;
+const SCHEMES = ['http', 'https', 'ssh', 'rdp', 'vnc', 'smb', 'ftp', 'url'];
+const DEF = { http: 80, https: 443, ssh: 22, rdp: 3389, vnc: 5900, smb: 445, ftp: 21 };
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, URL_RE = /^(https?|ssh|rdp|vnc|smb|ftp):\/\//i;
+const $ = s => document.querySelector(s);
+let hosts = [], layout = { order: [], collapsed: [], net: '' }, links = [], activeTag = '', view = { net: '', multi: false };
+let modalSave = null, dirty = false, downOnBackdrop = false, deleteArmed = false, editingId = null, mapDraft = { from: '', label: '', editId: '' };
+let storageLocked = false, pendingBackup = null;
+
+/* ===== Utilities ===== */
+function showMessage(message, type = 'error') {
+  const area = $('#message-area');
+  area.textContent = message;
+  area.className = `message-area ${type}`;
+  if (area.timeoutId) clearTimeout(area.timeoutId);
+  const d = (type === 'success' || type === 'info') ? MESSAGE_DURATION_SHORT : MESSAGE_DURATION_LONG;
+  area.timeoutId = setTimeout(() => area.classList.add('hidden'), d);
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const str = (v, n = 200) => String(v ?? '').slice(0, n).trim();
+const today = () => new Date().toLocaleDateString('sv-SE');
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const dayNum = s => Math.round(Date.parse(s) / 864e5);
+let hlQuery = '', hlRegex = null;
+function hl(text, q) {
+  const t = esc(text);
+  if (!q) return t;
+  if (q !== hlQuery) { hlQuery = q; hlRegex = new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); }
+  return t.replace(hlRegex, m => `<mark>${m}</mark>`);
+}
+function dl(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const isIp = v => /^(\d{1,3}\.){3}\d{1,3}$/.test(v) ? v.split('.').every(o => +o <= 255) : (v.includes(':') && /^[0-9a-f:.]+$/i.test(v));
+const isDns = v => /^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*$/i.test(v);
+const parseMonthDays = v => [...new Set((Array.isArray(v) ? v : String(v ?? '').split(/[^\d]+/)).map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 31))].sort((a, b) => a - b);
+
+/* ===== Data model: validation, migrations, storage ===== */
+const cleanAddrs = list => (Array.isArray(list) ? list : []).map(a => {
+  let ip = str(a?.ip, 100), dns = str(a?.dns, 100);
+  if (ip && !isIp(ip)) { if (!dns) dns = ip; ip = ''; }
+  if (dns && !isDns(dns)) dns = '';
+  return { net: str(a?.net, 30) || 'LAN', ip, dns };
+}).filter(a => a.ip || a.dns);
+const cleanSchedules = list => (Array.isArray(list) ? list : []).slice(0, 10).map(x => ({
+  name: str(x?.name, 40) || 'Schedule', mode: x?.mode === 'auto' ? 'auto' : 'manual',
+  repeat: x?.repeat === 'month' && parseMonthDays(x?.monthDays).length ? 'month' : 'days', monthDays: parseMonthDays(x?.monthDays),
+  days: Number(x?.days) > 0 ? Math.min(Math.floor(Number(x.days)), 3650) : '',
+  start: DATE_RE.test(x?.start || '') ? x.start : '', last: DATE_RE.test(x?.last || '') ? x.last : '', note: str(x?.note, 100)
+}));
+function cleanEndpoint(e) {
+  if (!e || !e.scheme) return null;
+  const scheme = SCHEMES.includes(e.scheme) ? e.scheme : 'http', port = str(e.port, 300), path = str(e.path, 200);
+  return {
+    label: str(e.label, 50), scheme,
+    port: scheme === 'url' ? (URL_RE.test(port) ? port : '') : (/^\d{1,5}$/.test(port) ? port : ''),
+    path: scheme === 'ssh' ? (/^[\w.-]+$/.test(path) ? path : '') : path
+  };
+}
+const cleanLog = list => (Array.isArray(list) ? list : []).map(l => ({ t: str(l?.t, 16), type: str(l?.type, 12) || 'note', text: str(l?.text, 300) })).filter(l => l.t).slice(-100);
+
+function sanitize(h) {
+  return {
+    id: str(h.id || uid(), 40), name: str(h.name, 100), emoji: str(h.emoji, 16), role: str(h.role, 50), os: str(h.os, 100),
+    lang: str(h.lang, 40), hardware: str(h.hardware, 100), group: str(h.group, 50), addrs: cleanAddrs(h.addrs),
+    tags: [...new Set((Array.isArray(h.tags) ? h.tags : []).map(t => str(t, 30)).filter(Boolean))].slice(0, 20),
+    endpoints: (Array.isArray(h.endpoints) ? h.endpoints : []).map(cleanEndpoint).filter(Boolean),
+    schedules: cleanSchedules(h.schedules), log: cleanLog(h.log),
+    runbook: String(h.runbook ?? '').slice(0, 10000), notes: String(h.notes ?? '').slice(0, 5000)
+  };
+}
+function sanitizeLinks(a, hs = hosts) {
+  const ids = new Set(hs.map(h => h.id));
+  return (Array.isArray(a) ? a : []).map(l => ({ id: str(l?.id || uid(), 40), from: str(l?.from, 40), to: str(l?.to, 40), label: str(l?.label, 40) }))
+    .filter(l => ids.has(l.from) && ids.has(l.to) && l.from !== l.to).slice(0, 300);
+}
+function sanitizeLayout(l) {
+  const a = x => Array.isArray(x) ? x.filter(v => typeof v === 'string').slice(0, 200) : [];
+  return { order: a(l?.order), collapsed: a(l?.collapsed), net: typeof l?.net === 'string' ? l.net.slice(0, 30) : '' };
+}
+function normalize(d) {
+  const hs = (Array.isArray(d.hosts) ? d.hosts : []).filter(h => h && typeof h === 'object').map(sanitize);
+  return { hosts: hs, layout: sanitizeLayout(d.layout), links: sanitizeLinks(d.links, hs) };
+}
+
+/* Schema 0 = data saved before versioning: ip/dns fields, "target" endpoints, upd/days/last,
+   login/install fields and "restart" log entries. */
+function legacyEndpoint(e, addrs) {
+  const label = str(e.label, 50), t = str(e.target, 300);
+  if (!t) return null;
+  const m = t.match(/^:?(\d{1,5})(\/.*)?$/);
+  if (m) return { label, scheme: [443, 8443].includes(+m[1]) ? 'https' : 'http', port: m[1], path: m[2] || '' };
+  const full = /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : 'http://' + t;
+  try {
+    const u = new URL(full), sc = u.protocol.slice(0, -1);
+    if (SCHEMES.includes(sc) && sc !== 'url' && addrs.some(a => [a.ip, a.dns.toLowerCase()].includes(u.hostname.toLowerCase())))
+      return { label, scheme: sc, port: u.port, path: sc === 'ssh' ? '' : (u.pathname === '/' ? '' : u.pathname) + u.search };
+  } catch {}
+  return { label, scheme: 'url', port: full, path: '' };
+}
+function migrateHostV0(h) {
+  const addrs = Array.isArray(h.addrs) ? h.addrs : [{ net: 'LAN', ip: h.ip, dns: h.dns }];
+  const upd = h.upd || (h.days || h.last ? { on: true, days: h.days, last: h.last } : null), known = cleanAddrs(addrs);
+  return {
+    ...h, addrs,
+    schedules: Array.isArray(h.schedules) ? h.schedules : upd && upd.on ? [{ name: 'Updates', ...upd }] : [],
+    notes: [h.login ? 'Login: ' + str(h.login, 200) : '', h.install ? 'Installed via: ' + str(h.install, 60) : '', String(h.notes ?? '')].filter(Boolean).join('\n'),
+    log: (Array.isArray(h.log) ? h.log : []).map(l => l && /^\s*restart\s*$/i.test(l.type) ? { ...l, type: 'reboot' } : l),
+    endpoints: (Array.isArray(h.endpoints) ? h.endpoints : []).map(e => e && !e.scheme ? legacyEndpoint(e, known) : e)
+  };
+}
+const MIGRATIONS = { 0: d => ({ ...d, hosts: d.hosts.map(migrateHostV0) }) };
+function migrate(d, from) {
+  for (let v = from; v < SCHEMA; v++) d = MIGRATIONS[v](d);
+  return d;
+}
+
+function loadStore() {
+  const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
+  const parse = s => { try { return JSON.parse(s); } catch { return null; } };
+  const version = Number(get(STORE.schema)) || 0, raw = { hosts: get(STORE.hosts), layout: get(STORE.layout), links: get(STORE.links) };
+  let d = { hosts: parse(raw.hosts), layout: parse(raw.layout), links: parse(raw.links) };
+  d.hosts = Array.isArray(d.hosts) ? d.hosts.filter(h => h && typeof h === 'object') : [];
+  if (version > SCHEMA) storageLocked = true;
+  else if (version < SCHEMA) {
+    d = migrate(d, version);
+    if (raw.hosts || raw.layout || raw.links) pendingBackup = { schema: version, savedAt: nowStamp(), ...raw };
+  }
+  return d;
+}
+function boot() {
+  const d = normalize(loadStore());
+  hosts = d.hosts; layout = d.layout; links = d.links;
+  if (storageLocked) showMessage('This data was saved by a newer version of the app.\nIt is shown read-only. Update the page to edit it.', 'warning');
+}
+function saveHosts() {
+  if (storageLocked) { showMessage('Saving is disabled: the saved data comes from a newer version of this app.'); return false; }
+  try {
+    if (pendingBackup) { try { localStorage.setItem(STORE.backup, JSON.stringify(pendingBackup)); } catch {} pendingBackup = null; }
+    localStorage.setItem(STORE.hosts, JSON.stringify(hosts));
+    localStorage.setItem(STORE.layout, JSON.stringify(layout));
+    localStorage.setItem(STORE.links, JSON.stringify(links));
+    localStorage.setItem(STORE.schema, String(SCHEMA));
+    return true;
+  } catch {
+    showMessage('Could not save: browser storage is full or blocked.\nExport a backup from Data Config.');
+    return false;
+  }
+}
+
+/* ===== Domain logic ===== */
+const nets = () => [...new Set(hosts.flatMap(h => h.addrs.map(a => a.net)))];
+const curNet = () => nets().includes(layout.net) ? layout.net : '';
+const defNet = () => curNet() || nets()[0] || 'LAN';
+const pickAddr = (h, net = curNet()) => h.addrs.find(a => a.net === net) || h.addrs[0];
+const nowStamp = () => new Date().toLocaleString('sv-SE').slice(0, 16).replace(' ', 'T');
+function epUrl(e, host) {
+  if (e.scheme === 'url') return URL_RE.test(e.port) ? e.port : null;
+  if (!host) return null;
+  const hh = host.includes(':') ? `[${host}]` : host, p = e.port && +e.port !== DEF[e.scheme] ? ':' + e.port : '';
+  if (e.scheme === 'ssh') return `ssh://${e.path ? e.path + '@' : ''}${hh}${p}`;
+  return `${e.scheme}://${hh}${p}${e.path ? (/^[/?]/.test(e.path) ? e.path : '/' + e.path) : ''}`;
+}
+const sshCmd = (e, host) => `ssh ${e.port && +e.port !== 22 ? '-p ' + e.port + ' ' : ''}${e.path ? e.path + '@' : ''}${host}`;
+const ord = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+const toStr = n => new Date(n * 864e5).toISOString().slice(0, 10);
+function nextMonthly(days, after) {
+  const a = new Date(after * 864e5);
+  for (let k = 0; k < 14; k++) {
+    const y = a.getUTCFullYear(), m = a.getUTCMonth() + k, len = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    const c = days.map(d => Date.UTC(y, m, Math.min(d, len)) / 864e5).filter(x => x > after).sort((p, q) => p - q);
+    if (c.length) return c[0];
+  }
+  return null;
+}
+function schedInfo(s) {
+  const n = s.note ? `, ${s.note}` : '', d = +s.days, t = dayNum(today()), M = s.repeat === 'month' && s.monthDays.length ? s.monthDays : null;
+  const mtxt = M ? `on the ${M.map(ord).join(', ')} of each month` : '';
+  const diff = x => { const k = x - t; return k < 0 ? `overdue by ${-k} day${k === -1 ? '' : 's'}` : k === 0 ? 'due today' : `due in ${k} day${k === 1 ? '' : 's'}`; };
+  const cls = x => x - t < 0 ? 'err' : x - t <= 7 ? 'warn' : 'ok';
+  if (s.mode === 'auto') return { cls: '', text: `automatic${mtxt ? ', ' + mtxt : ''}${n}` + (M ? `, next ${toStr(nextMonthly(M, t - 1))}` : s.start && dayNum(s.start) > t ? `, starting ${s.start}` : '') + (s.last ? ` (last ${s.last})` : '') };
+  if (M) { const x = nextMonthly(M, s.last ? dayNum(s.last) : s.start ? dayNum(s.start) - 1 : t - 1); return { cls: cls(x), text: `${diff(x)}, ${toStr(x)} (${mtxt}${s.last ? `, last ${s.last}` : ''})${n}` }; }
+  if (s.last && d) { const x = dayNum(s.last) + d; return { cls: cls(x), text: `${diff(x)} (every ${d} days, last ${s.last})${n}` }; }
+  if (s.last) return { cls: '', text: `manual, last ${s.last}${n}` };
+  if (s.start) { const x = dayNum(s.start); return { cls: cls(x), text: `first run ${diff(x)} (${s.start}${d ? `, then every ${d} days` : ''})${n}` }; }
+  return { cls: d ? 'warn' : '', text: `manual${d ? `, every ${d} days` : ''}, no start date${n}` };
+}
+const RANK = { '': 0, ok: 1, warn: 2, err: 3 };
+function toMarkdown() {
+  let o = `# Network inventory\n\nExported ${today()}, ${hosts.length} host${hosts.length === 1 ? '' : 's'}.\n`;
+  const present = [...new Set(hosts.map(h => h.group))];
+  [...layout.order.filter(g => present.includes(g)), ...present.filter(g => !layout.order.includes(g))].forEach(g => {
+    o += `\n## ${g || 'Ungrouped'}\n`;
+    hosts.filter(h => h.group === g).forEach(h => {
+      const f = (k, v) => v ? `- **${k}:** ${v}\n` : '', A = h.addrs[0];
+      o += `\n### ${h.emoji ? h.emoji + ' ' : ''}${h.name}\n\n` + f('Role', h.role) + f('OS', [h.os, h.lang].filter(Boolean).join(', ')) + f('Hardware', h.hardware) + f('Tags', h.tags.join(', '));
+      h.addrs.forEach(a => { o += f(a.net, [a.ip, a.dns].filter(Boolean).join(' / ')); });
+      h.endpoints.forEach(e => { o += f(e.label || e.scheme, epUrl(e, A.dns || A.ip)); });
+      h.schedules.forEach(sc => { o += f(sc.name, (sc.mode === 'auto' ? 'automatic' : 'manual') + (sc.repeat === 'month' ? `, on the ${sc.monthDays.map(ord).join(', ')} of each month` : sc.days ? `, every ${sc.days} days` : '') + (sc.start ? `, from ${sc.start}` : '') + (sc.last ? `, last ${sc.last}` : '') + (sc.note ? `, ${sc.note}` : '')); });
+      const nt = h.notes.split('\n').filter(l => !/^\s*login\s*:/i.test(l)).join('\n').trim(); if (nt) o += `\n${nt}\n`;
+      if (h.runbook) o += '\n```\n' + h.runbook + '\n```\n';
+      if (h.log.length) o += '\n**Log**\n\n' + h.log.slice().sort((a, b) => a.t < b.t ? 1 : -1).map(l => `- ${l.t.replace('T', ' ')} ${l.type}${l.text ? ': ' + l.text : ''}`).join('\n') + '\n';
+    });
+  });
+  const nm = new Map(hosts.map(h => [h.id, h.name]));
+  if (links.length) o += '\n## Connections\n\n' + links.map(l => `- ${nm.get(l.from)} → ${nm.get(l.to)}${l.label ? ': ' + l.label : ''}`).join('\n') + '\n';
+  return o;
+}
+
+/* ===== Rendering ===== */
+const cmtAt = l => {
+  let q = '';
+  for (let i = 0; i < l.length; i++) {
+    const c = l[i];
+    if (q) { if (c === '\\' && q === '"') i++; else if (c === q) q = ''; }
+    else if (c === '"' || c === "'") q = c;
+    else if (c === '#' && (i === 0 || /\s/.test(l[i - 1]))) return i;
+  }
+  return -1;
+};
+const cmtHtml = l => { const i = cmtAt(l); return i < 0 ? esc(l) : `${esc(l.slice(0, i))}<span class="cmt">${esc(l.slice(i))}</span>`; };
+const rbHtml = h => h.runbook ? `<details class="rb"><summary>Commands &amp; routines</summary>${h.runbook.split('\n').map(l => !l.trim() ? '' : /^\s*#/.test(l) ? `<div class="cm">${esc(l)}</div>` : `<div class="cl"><code>${cmtHtml(l)}</code><button class="btn sm" data-act="copy" data-v="${esc(l.trim())}">Copy</button></div>`).join('')}<div style="margin-top:8px"><button class="btn sm" data-act="copy" data-v="${esc(h.runbook)}">Copy all</button></div></details>` : '';
+function cardHtml(h, q) {
+  const infos = h.schedules.map(schedInfo), cls = infos.reduce((a, x) => RANK[x.cls] > RANK[a] ? x.cls : a, ''), A = pickAddr(h, view.net), multi = view.multi || h.addrs.length > 1;
+  const sched = infos.map((x, k) => `<span class="${x.cls}">${esc(h.schedules[k].name)}: ${esc(x.text)}</span>`).join('<br>');
+  const btn = (u, t, c) => u ? `<a class="btn sm ${c}" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(t)}</a>` : '';
+  const cp = (v, t, c) => `<button class="btn sm ${c}" data-act="copy" data-v="${esc(v)}">${esc(t)}</button>`;
+  const copy = (v, c) => `<button class="ip ${c}" data-act="copy" data-v="${esc(v)}" aria-label="Copy ${esc(v)}">${hl(v, q)}</button>`;
+  const links = h.endpoints.map(e => {
+    const d = A?.dns, i = A?.ip, name = e.label || e.scheme + (e.port ? ':' + e.port : '');
+    let sub, act;
+    if (e.scheme === 'url') { const u = epUrl(e); if (!u) return ''; sub = u.replace(/^https?:\/\//, ''); act = btn(u, 'Open', 'accent'); }
+    else if (e.scheme === 'ssh') {
+      const c = sshCmd(e, d || i); sub = c;
+      act = `<span class="split">${cp(c, 'Copy', 'accent')}${d && i ? cp(sshCmd(e, i), 'via IP', '') : ''}<button class="btn sm" data-act="sshbat" data-v="${esc(c)}" data-n="${esc(h.name)}">Launcher .bat</button></span>`;
+    } else {
+      sub = e.scheme + (e.port ? ' :' + e.port : '');
+      act = `<span class="split">${btn(epUrl(e, d || i), 'Open', 'accent')}${d && i ? btn(epUrl(e, i), 'via IP', '') : ''}</span>`;
+    }
+    return `<div class="ep"><div class="et"><span class="en">${hl(name, q)}</span><span class="esub">${esc(sub)}</span></div>${act}</div>`;
+  }).join('');
+  const addrs = h.addrs.map(a => `<div class="addr${a === A || !view.net ? '' : ' off'}">${multi ? `<span class="badge">${hl(a.net, q)}</span>` : ''}${a.ip ? copy(a.ip, '') : ''}${a.dns ? copy(a.dns, 'dns') : ''}</div>`).join('');
+  const info = [h.hardware, h.os, h.lang].filter(Boolean).map(x => hl(x, q)).join(' · ');
+  const last = h.log.slice().sort((a, b) => a.t < b.t ? 1 : -1)[0];
+  return `<div class="host ${cls}" data-id="${esc(h.id)}">
+    <div class="host-head">
+      <span class="host-name">${h.emoji ? `<span class="emoji">${esc(h.emoji)}</span>` : ''}${hl(h.name, q)}</span>
+      ${h.role ? `<span class="badge role">${hl(h.role, q)}</span>` : ''}
+    </div>
+    ${addrs}
+    <div class="meta">${info ? info + '<br>' : ''}${sched}${last ? `<br>Last event: ${esc(last.type)}, ${esc(last.t.replace('T', ' '))}` : ''}</div>
+    ${h.tags.length ? `<div class="tags">${h.tags.map(t => `<button class="chip tag${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}">${hl(t, q)}</button>`).join('')}</div>` : ''}
+    ${links ? `<div class="links">${links}</div>` : ''}
+    ${h.notes ? `<div class="notes">${hl(h.notes, q)}</div>` : ''}
+    ${rbHtml(h)}
+    <div class="actions"><button class="btn sm" data-act="edit">Edit</button><button class="btn sm" data-act="log">Log${h.log.length ? ' (' + h.log.length + ')' : ''}</button>${h.schedules.map((x, k) => x.mode === 'manual' ? `<button class="btn sm" data-act="done" data-i="${k}">Mark ${esc(x.name.toLowerCase())} done</button>` : '').join('')}</div>
+  </div>`;
+}
+function render() {
+  const roles = [...new Set(hosts.map(h => h.role).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const rf = $('#roleFilter'), cur = rf.value;
+  rf.innerHTML = '<option value="">All roles</option>' + roles.map(r => `<option${r === cur ? ' selected' : ''}>${esc(r)}</option>`).join('');
+  const ns = nets(), nsel = $('#netSel');
+  nsel.classList.toggle('hide', ns.length < 2);
+  nsel.innerHTML = '<option value="">All networks</option>' + ns.map(n => `<option value="${esc(n)}"${n === curNet() ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  view = { net: curNet(), multi: ns.length > 1 };
+  const tags = [...new Set(hosts.flatMap(h => h.tags))].sort((a, b) => a.localeCompare(b));
+  if (activeTag && !tags.includes(activeTag)) activeTag = '';
+  $('#tagBar').classList.toggle('hide', !tags.length);
+  $('#tagBar').innerHTML = tags.map(t => `<button class="chip${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('');
+  const role = rf.value, q = $('#search').value.trim(), ql = q.toLowerCase(), net = curNet(), filt = !!(q || role || activeTag || net);
+  const list = hosts.filter(h => (!role || h.role === role) && (!activeTag || h.tags.includes(activeTag)) && (!net || h.addrs.some(a => a.net === net)) &&
+    (!ql || [h.name, h.role, h.os, h.lang, h.hardware, h.group, h.notes, h.tags.join(' '), ...h.addrs.map(a => `${a.net} ${a.ip} ${a.dns}`), ...h.endpoints.map(e => e.label + ' ' + e.port)].join(' ').toLowerCase().includes(ql)));
+  $('#count').textContent = hosts.length ? `Showing ${list.length} of ${hosts.length} host${hosts.length === 1 ? '' : 's'}` : '';
+  $('#resetOrder').parentElement.classList.toggle('hide', !hosts.length);
+  if (!hosts.length) { $('#hosts').innerHTML = '<div class="empty">No hosts yet.<br>Click “+ Add Host” to document your first device.</div>'; return; }
+  if (!list.length) { $('#hosts').innerHTML = '<div class="empty">No hosts match your search.</div>'; return; }
+  const present = [...new Set(hosts.map(h => h.group))];
+  layout.order = [...layout.order.filter(g => present.includes(g)), ...present.filter(g => !layout.order.includes(g))];
+  const named = layout.order.length > 1 || layout.order[0] !== '';
+  $('#hosts').innerHTML = layout.order.map(g => {
+    const items = list.filter(h => h.group === g);
+    if (!items.length) return '';
+    const fold = !filt && layout.collapsed.includes(g);
+    const head = named ? `<div class="group-head"><h2>${hl(g || 'Ungrouped', q)}</h2><span class="badge">${items.length}</span>${g ? '<button class="btn sm" data-gact="rename">Rename</button>' : ''}<button class="btn sm" data-gact="fold">${fold ? 'Expand' : 'Collapse'}</button></div>` : '';
+    return `<section class="group${fold ? ' collapsed' : ''}" data-group="${esc(g)}">${head}<div class="cards">${items.map(h => cardHtml(h, q)).join('')}</div></section>`;
+  }).join('');
+}
+
+/* ===== Dialogs and forms ===== */
+function openModal(html, onSave) {
+  modalSave = onSave || null; deleteArmed = false; dirty = false;
+  $('#modal').className = 'modal';
+  $('#modal').innerHTML = html;
+  $('#overlay').classList.remove('hide');
+  const f = $('#modal').querySelector('input:not([type=hidden]),textarea,button');
+  if (f) f.focus();
+}
+function softClose() {
+  if (dirty) { dirty = false; return showMessage('You have unsaved changes.\nPress Escape or click outside again to discard them, or use Save.', 'warning'); }
+  closeModal();
+}
+function closeModal() { $('#overlay').classList.add('hide'); $('#modal').innerHTML = ''; modalSave = null; }
+const modalHead = t => `<h2>${t}<button class="x" data-close aria-label="Close">×</button></h2>`;
+
+const EMOJI = ['🖥️','💻','🗄️','💾','📡','🛜','🔌','🧱','🛡️','🔥','🍓','📺','📱','🏠','☁️','🔒','🔑','🧪','🎮','📦','🌐','⚙️','🔧','🛠️','📷','🎥','🖨️','🔊','🎵','💡','🌡️','⚡','🔋','🕹️','📁','📂','🗂️','🧠','🤖','🐧','🐳','🪟','🍎','🐙','📊','📈','📬','⏰','🧭','🚨','🛰️','📶','🔔','🧰','💽','📀','🧮','🌍','🔭','🎛️','🧯'];
+const LOGT = ['reboot', 'shutdown', 'incident', 'update', 'note'];
+const used = k => [...new Set(hosts.map(h => h[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+const chips = (id, vals, c = '', lab = '', app = false) => vals.length ? `<div class="chips${c ? ' emo' : ''}">${lab ? `<span class="hint">${lab}</span>` : ''}${vals.map(v => `<button type="button" class="chip ${c}" data-fill="f-${id}"${app ? ' data-append' : ''} data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : '';
+const schedRow = s => `<div class="srow"><div class="r"><input class="s-name" value="${esc(s.name)}" placeholder="Updates, Reboot, Backup..." style="flex:1 1 150px"><select class="s-mode" style="flex:0 0 110px"><option value="manual"${s.mode === 'manual' ? ' selected' : ''}>Manual</option><option value="auto"${s.mode === 'auto' ? ' selected' : ''}>Automatic</option></select><select class="s-repeat" style="flex:0 0 150px"><option value="days"${s.repeat !== 'month' ? ' selected' : ''}>Every N days</option><option value="month"${s.repeat === 'month' ? ' selected' : ''}>Day(s) of month</option></select><button type="button" class="x" data-rm aria-label="Remove schedule">×</button></div>
+  ${(() => { const n = [...new Set(hosts.flatMap(x => x.schedules.map(y => y.name)))]; return n.length ? `<div class="chips"><span class="hint">Used before:</span>${n.map(v => `<button type="button" class="chip" data-row=".s-name" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''; })()}
+  <div class="row" style="margin-top:6px"><div class="s-daysbox${s.repeat === 'month' ? ' hide' : ''}"><label>Repeat every (days)<input class="s-days" type="number" min="1" value="${esc(s.days)}" placeholder="30"></label><div class="chips">${['7', '14', '30', '90', '365'].map(d => `<button type="button" class="chip" data-row=".s-days" data-v="${d}">${d}</button>`).join('')}</div></div>
+  <div class="s-monthbox${s.repeat === 'month' ? '' : ' hide'}"><label>Day(s) of month<input class="s-month" value="${esc((s.monthDays || []).join(', '))}" placeholder="1, 2"></label><div class="hint">Days 29-31 use the last day of shorter months.</div></div>
+  <div><label>First run / start from<input class="s-start" type="date" value="${esc(s.start)}"></label></div>
+  <div><label>Time window / note<input class="s-note" value="${esc(s.note)}" placeholder="Sundays 03:00"></label></div></div>
+  ${s.last ? `<div class="r"><label style="margin:0">Last done<input class="s-last" type="date" value="${esc(s.last)}"></label></div>` : ''}</div>`;
+const addrRow = a => `<div class="arow"><div class="r"><input class="a-net" value="${esc(a.net)}" placeholder="Network" style="flex:0 0 110px"><input class="a-ip" value="${esc(a.ip)}" placeholder="IP address" style="flex:1 1 120px"><input class="a-dns" value="${esc(a.dns)}" placeholder="DNS name" style="flex:1 1 140px"><button type="button" class="x" data-rm aria-label="Remove address">×</button></div>${nets().length ? `<div class="chips">${nets().map(n => `<button type="button" class="chip" data-row=".a-net" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}</div>`;
+const epRow = e => `<div class="erow"><div class="r"><input class="e-label" value="${esc(e.label)}" placeholder="Function (Web UI, SSH...)" style="flex:2 1 150px"><select class="e-scheme" data-prev="${e.scheme}" style="flex:0 0 84px">${SCHEMES.map(x => `<option${x === e.scheme ? ' selected' : ''}>${x}</option>`).join('')}</select><input class="e-port" value="${esc(e.port)}" placeholder="${e.scheme === 'url' ? 'Full URL' : (DEF[e.scheme] || 'Port')}" style="flex:1 1 90px"><input class="e-path${e.scheme === 'url' ? ' hide' : ''}" value="${esc(e.path)}" placeholder="${e.scheme === 'ssh' ? 'Username' : '/path'}" style="flex:1 1 90px"><button type="button" class="x" data-rm aria-label="Remove endpoint">×</button></div></div>`;
+
+function openHost(id) {
+  editingId = id || null;
+  const h = hosts.find(x => x.id === id) || { name: '', emoji: '', role: '', os: '', lang: '', hardware: '', group: '', tags: [], addrs: [{ net: defNet(), ip: '', dns: '' }], endpoints: [], schedules: [], runbook: '', notes: '' };
+  const ut = [...new Set(hosts.flatMap(x => x.tags))].sort();
+  const fs = (t, open, body) => `<details class="fs"${open ? ' open' : ''}><summary>${t}</summary><div class="fsb">${body}</div></details>`;
+  openModal(`${modalHead(id ? 'Edit Host' : 'Add Host')}
+    <div class="row"><div><label for="f-name">Name *</label><input id="f-name" value="${esc(h.name)}" placeholder="proxmox-01"></div>
+    <div style="flex:0 0 110px"><label for="f-emoji">Symbol</label><input id="f-emoji" value="${esc(h.emoji)}" placeholder="🖥️"></div></div>
+    ${fs('Choose symbol', false, chips('emoji', EMOJI, 'e'))}
+    ${fs('Classification', true, `<div class="row"><div><label for="f-role">Role</label><input id="f-role" value="${esc(h.role)}" placeholder="Hypervisor">${chips('role', used('role'), '', 'Used before:')}</div>
+      <div><label for="f-group">Group</label><input id="f-group" value="${esc(h.group)}" placeholder="Leave empty for none">${chips('group', used('group'), '', 'Used before:')}</div></div>
+      <div class="row"><div><label for="f-os">OS / platform</label><input id="f-os" value="${esc(h.os)}" placeholder="Debian 12">${chips('os', used('os'), '', 'Used before:')}</div>
+      <div><label for="f-lang">OS language</label><input id="f-lang" value="${esc(h.lang)}" placeholder="English">${chips('lang', used('lang'), '', 'Used before:')}</div></div>
+      <div class="row"><div><label for="f-hardware">Hardware</label><input id="f-hardware" value="${esc(h.hardware)}" placeholder="Raspberry Pi 4 (4 GB), Dell OptiPlex 3040...">${chips('hardware', used('hardware'), '', 'Used before:')}</div>
+      <div><label for="f-tags">Tags (comma separated)</label><input id="f-tags" value="${esc(h.tags.join(', '))}" placeholder="prod, vpn, backup">${chips('tags', ut, '', 'Used before:', true)}</div></div>`)}
+    ${fs('Addresses', true, `<div class="hint" style="margin-bottom:6px">One row per network, e.g. LAN or VPN.</div>
+      <div id="addrs">${h.addrs.map(addrRow).join('')}</div><button type="button" class="btn sm" data-add="addrs">+ Add address</button>`)}
+    ${fs('Endpoints', true, `<div id="eps">${h.endpoints.map(epRow).join('')}</div><button type="button" class="btn sm" data-add="eps">+ Add endpoint</button>`)}
+    ${fs('Schedules', h.schedules.length > 0, `<div id="scheds">${h.schedules.map(schedRow).join('')}</div><button type="button" class="btn sm" data-add="scheds">+ Add schedule</button>`)}
+    ${fs('Notes &amp; commands', !!(h.notes || h.runbook), `<div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Login: admin (password in Bitwarden)&#10;Location: rack 2, shelf 3&#10;Serial number, warranty, purchase date...">${esc(h.notes)}</textarea></div>
+      <div class="field"><label for="f-runbook">Commands &amp; routines (one command per line, # for comments)</label><textarea id="f-runbook" class="mono" placeholder="# restart the stack&#10;docker compose restart">${esc(h.runbook)}</textarea></div>`)}
+    <div class="modal-actions"><button class="btn accent" data-save>Save host</button><button class="btn" data-close>Cancel</button>
+    ${id ? '<button class="btn danger spacer" data-delete>Delete host</button>' : ''}</div>
+    <div class="hint">Ctrl+Enter saves, Escape closes.</div>`, () => saveHost(id));
+}
+
+function saveHost(id) {
+  const all = s => [...document.querySelectorAll('#modal ' + s)], q = (r, c) => r.querySelector(c).value.trim(), v = k => $('#f-' + k).value.trim();
+  const name = v('name');
+  if (!name) return showMessage('Name is required.');
+  const addrs = [];
+  for (const r of all('.arow')) {
+    const a = { net: q(r, '.a-net') || 'LAN', ip: q(r, '.a-ip'), dns: q(r, '.a-dns') };
+    if (!a.ip && !a.dns) continue;
+    if (a.ip && !isIp(a.ip)) return showMessage(`“${a.ip}” is not a valid IP address.`);
+    if (a.dns && !isDns(a.dns)) return showMessage(`“${a.dns}” is not a valid DNS name.`);
+    addrs.push(a);
+  }
+  if (!addrs.length) return showMessage('Add at least one IP address or DNS name.');
+  const endpoints = [];
+  for (const r of all('.erow')) {
+    const e = { label: q(r, '.e-label'), scheme: q(r, '.e-scheme'), port: q(r, '.e-port'), path: q(r, '.e-path') };
+    if (!e.label && !e.path && (!e.port || (e.scheme !== 'url' && +e.port === DEF[e.scheme]))) continue;
+    if (e.scheme === 'url' && !URL_RE.test(e.port)) return showMessage(`“${e.port}” is not a valid URL.`);
+    if (e.scheme !== 'url' && e.port && !(/^\d{1,5}$/.test(e.port) && +e.port >= 1 && +e.port <= 65535)) return showMessage(`“${e.port}” is not a valid port (1-65535).`);
+    if (e.scheme === 'ssh' && e.path && !/^[\w.-]+$/.test(e.path)) return showMessage('SSH username may only contain letters, digits, dot, dash and underscore.');
+    endpoints.push(e);
+  }
+  const old = hosts.find(x => x.id === id);
+  const schedules = all('.srow').map(r => ({ name: q(r, '.s-name'), mode: q(r, '.s-mode'), repeat: q(r, '.s-repeat'), days: q(r, '.s-days'), monthDays: q(r, '.s-month'), start: q(r, '.s-start'), last: r.querySelector('.s-last') ? q(r, '.s-last') : '', note: q(r, '.s-note') })).filter(x => x.name || x.days || x.monthDays || x.start || x.note);
+  const badSc = schedules.find(x => x.repeat === 'month' && !parseMonthDays(x.monthDays).length);
+  if (badSc) return showMessage(`“${badSc.name || 'Schedule'}”: enter at least one day of the month (1-31).`);
+  const rec = sanitize({ id: id || uid(), name, emoji: v('emoji'), role: v('role'), os: v('os'), lang: v('lang'), hardware: v('hardware'), group: v('group'),
+    tags: v('tags').split(','), addrs, endpoints, runbook: $('#f-runbook').value, notes: $('#f-notes').value.trim(),
+    schedules, log: old ? old.log : [] });
+  const dupe = hosts.find(o => o.id !== rec.id && o.addrs.some(a => rec.addrs.some(b => a.net === b.net && ((a.ip && a.ip === b.ip) || (a.dns && b.dns && a.dns.toLowerCase() === b.dns.toLowerCase())))));
+  const i = hosts.findIndex(h => h.id === rec.id);
+  if (i >= 0) hosts[i] = rec; else hosts.push(rec);
+  if (!saveHosts()) return;
+  closeModal(); render();
+  if (dupe) showMessage(`Saved, but an address is also used by “${dupe.name}” on the same network.`, 'warning');
+  else showMessage(id ? `Updated ${name}` : `Added ${name}`, 'success');
+}
+
+function openLog(id) {
+  editingId = id;
+  const h = hosts.find(x => x.id === id); if (!h) return;
+  const items = h.log.map((l, i) => ({ l, i })).sort((a, b) => a.l.t < b.l.t ? 1 : -1);
+  openModal(`${modalHead('Log: ' + esc(h.name))}
+    <div class="row"><div><label for="l-type">Type</label><select id="l-type">${LOGT.map(t => `<option>${t}</option>`).join('')}</select></div>
+    <div><label for="l-t">When</label><input id="l-t" type="datetime-local" value="${nowStamp()}"></div></div>
+    <div class="field"><label for="l-text">Note (optional)</label><input id="l-text" placeholder="What happened?"></div>
+    <div class="modal-actions" style="margin-top:0"><button class="btn accent" data-save>Add entry</button><button class="btn" data-close>Close</button></div>
+    <h3>History</h3>${items.length ? items.map(({ l, i }) => `<div class="logrow"><span><b>${esc(l.type)}</b> ${esc(l.t.replace('T', ' '))}${l.text ? '<br>' + esc(l.text) : ''}</span><button class="x" data-logdel="${i}" aria-label="Delete entry">×</button></div>`).join('') : '<p>No entries yet.</p>'}`, () => {
+    h.log.push({ t: $('#l-t').value || nowStamp(), type: $('#l-type').value, text: $('#l-text').value.trim().slice(0, 300) });
+    h.log = h.log.slice(-100);
+    if (saveHosts()) { render(); showMessage('Log entry added', 'success'); openLog(id); }
+  });
+}
+
+function mapSvg(ids, ls, byId) {
+  const NW = 176, NH = 46, GX = 30, GY = 74;
+  const out = new Map(ids.map(i => [i, []])), inc = new Map(ids.map(i => [i, 0]));
+  ls.forEach(l => { out.get(l.from).push(l.to); inc.set(l.to, inc.get(l.to) + 1); });
+  const lvl = new Map(), queue = [];
+  const run = r => { if (lvl.has(r)) return; lvl.set(r, 0); queue.push(r); while (queue.length) { const x = queue.shift(); out.get(x).forEach(y => { if (!lvl.has(y)) { lvl.set(y, lvl.get(x) + 1); queue.push(y); } }); } };
+  ids.filter(i => !inc.get(i)).forEach(run); ids.forEach(run);
+  const tiers = []; ids.forEach(i => (tiers[lvl.get(i)] = tiers[lvl.get(i)] || []).push(i));
+  const W = Math.max(...tiers.map(t => t.length)) * (NW + GX) - GX, H = tiers.length * (NH + GY) - GY, pos = new Map();
+  const avgX = id => { const xs = ls.filter(l => l.to === id && pos.has(l.from)).map(l => pos.get(l.from).x); return xs.length ? xs.reduce((a, b) => a + b) / xs.length : 1e9; };
+  tiers.forEach((t, r) => {
+    if (r) t.sort((a, b) => avgX(a) - avgX(b));
+    const x0 = (W - (t.length * (NW + GX) - GX)) / 2;
+    t.forEach((id, k) => pos.set(id, { x: x0 + k * (NW + GX) + NW / 2, y: r * (NH + GY) + NH / 2 }));
+  });
+  const clip = (c, t) => { const dx = t.x - c.x, dy = t.y - c.y; if (!dx && !dy) return c; const k = Math.min(dx ? NW / 2 / Math.abs(dx) : 1e9, dy ? NH / 2 / Math.abs(dy) : 1e9); return { x: c.x + dx * k, y: c.y + dy * k }; };
+  const grp = new Map(), seen = new Map(), key = l => [l.from, l.to].sort().join('|');
+  ls.forEach(l => grp.set(key(l), (grp.get(key(l)) || 0) + 1));
+  let minY = -12, maxY = H + 12;
+  const cross = new Map(), rowN = new Map();
+  ls.forEach(l => { const a = pos.get(l.from), b = pos.get(l.to); if (a.y === b.y) return; const hi = a.y < b.y ? a : b, lo = a.y < b.y ? b : a; if (!cross.has(lo.y)) cross.set(lo.y, [0, 0]); if (!cross.has(hi.y)) cross.set(hi.y, [0, 0]); cross.get(lo.y)[0]++; cross.get(hi.y)[1]++; });
+  const edges = ls.map(l => {
+    const a = pos.get(l.from), b = pos.get(l.to), k = key(l), i = seen.get(k) || 0; seen.set(k, i + 1);
+    if (a.y === b.y) {
+      const c = cross.get(a.y) || [0, 0], up = c[1] > c[0], lv = rowN.get(a.y) || 0, bulge = 30 + 22 * lv, sy = a.y + (up ? -NH / 2 : NH / 2), mx = (a.x + b.x) / 2, cy = sy + (up ? -2 : 2) * bulge, ay = sy + (up ? -bulge : bulge);
+      rowN.set(a.y, lv + 1);
+      if (up) minY = Math.min(minY, ay - 22); else maxY = Math.max(maxY, ay + 24);
+      return `<path class="medge" d="M${a.x} ${sy} Q${mx} ${cy} ${b.x} ${sy}" marker-end="url(#arr)"/>` + (l.label ? `<text class="mlabel" x="${mx}" y="${up ? ay - 5 : ay + 14}" text-anchor="middle">${esc(l.label)}</text>` : '');
+    }
+    const p1 = clip(a, b), p2 = clip(b, a), [u, v] = [l.from, l.to].sort(), dx = pos.get(v).x - pos.get(u).x, dy = pos.get(v).y - pos.get(u).y, len = Math.hypot(dx, dy) || 1;
+    const off = (i - (grp.get(k) - 1) / 2) * 16, ox = -dy / len * off, oy = dx / len * off;
+    const x1 = p1.x + ox, y1 = p1.y + oy, x2 = p2.x + ox, y2 = p2.y + oy;
+    return `<line class="medge" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#arr)"/>` + (l.label ? `<text class="mlabel" x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 4}" text-anchor="middle">${esc(l.label)}</text>` : '');
+  }).join('');
+  const cut = (t, n) => t.length > n ? t.slice(0, n - 1) + '…' : t;
+  const nodes = ids.map(id => {
+    const h = byId.get(id), p = pos.get(id), A = pickAddr(h), x = p.x - NW / 2, y = p.y - NH / 2;
+    return `<rect class="mnode" x="${x}" y="${y}" width="${NW}" height="${NH}" rx="6"/><rect class="macc" x="${x}" y="${y}" width="4" height="${NH}" rx="2"/><text class="mname" x="${x + 14}" y="${y + 20}">${esc(cut((h.emoji ? h.emoji + ' ' : '') + h.name, 22))}</text><text class="maddr" x="${x + 14}" y="${y + 36}">${esc(cut(A ? (A.ip || A.dns) : '', 26))}</text>`;
+  }).join('');
+  return `<svg class="mapsvg" style="max-width:${W + 24}px" viewBox="-12 ${minY} ${W + 24} ${maxY - minY}" role="img" aria-label="Network map"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="marrow"/></marker></defs>${edges}${nodes}</svg>`;
+}
+function openMap() {
+  if (hosts.length < 2) return showMessage('Add at least two hosts to build a map.', 'info');
+  const byId = new Map(hosts.map(h => [h.id, h])), ls = links.filter(l => byId.has(l.from) && byId.has(l.to));
+  const ids = [...new Set(ls.flatMap(l => [l.from, l.to]))], used = [...new Set(links.map(l => l.label).filter(Boolean))];
+  const ed = ls.find(l => l.id === mapDraft.editId), from = ed ? ed.from : mapDraft.from, to = ed ? ed.to : '', label = ed ? ed.label : mapDraft.label;
+  const opt = sel => hosts.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(h => `<option value="${esc(h.id)}"${h.id === sel ? ' selected' : ''}>${esc((h.emoji ? h.emoji + ' ' : '') + h.name)}</option>`).join('');
+  openModal(`${modalHead('Network map')}
+    ${ids.length ? mapSvg(ids, ls, byId) : '<div class="empty">No connections yet. Add one below.</div>'}
+    ${ls.length ? `<h3>Connections</h3>${ls.map(l => `<div class="logrow${ed && ed.id === l.id ? ' sel' : ''}"><span>${esc(byId.get(l.from).name)} → ${esc(byId.get(l.to).name)}${l.label ? ': ' + esc(l.label) : ''}</span><span class="r"><button class="btn sm" data-ledit="${esc(l.id)}">Edit</button><button class="x" data-ldel="${esc(l.id)}" aria-label="Delete connection">×</button></span></div>`).join('')}` : ''}
+    <h3>${ed ? 'Edit connection' : 'Add connection'}</h3>
+    <div class="row"><div><label for="m-from">From</label><select id="m-from">${opt(from)}</select></div><div><label for="m-to">To</label><select id="m-to">${opt(to)}</select></div></div>
+    <div class="field"><label for="m-label">Label</label><input id="m-label" value="${esc(label)}" placeholder="DNS server, uplink, VPN...">
+    ${used.length ? `<div class="chips">${used.map(v => `<button type="button" class="chip" data-fill="m-label" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''}</div>
+    <div class="modal-actions"><button class="btn accent" data-save>${ed ? 'Save changes' : 'Add connection'}</button>${ed ? '<button class="btn" data-canceledit>Cancel edit</button>' : ''}<button class="btn" data-close>Close</button></div>`, addLink);
+  $('#modal').classList.add('wide');
+  if (ed) $('#m-label').focus();
+}
+function addLink() {
+  const from = $('#m-from').value, to = $('#m-to').value, label = $('#m-label').value.trim().slice(0, 40);
+  if (from === to) return showMessage('Pick two different hosts.');
+  const ed = links.find(l => l.id === mapDraft.editId);
+  if (links.some(l => l !== ed && l.from === from && l.to === to && l.label.toLowerCase() === label.toLowerCase())) return showMessage('That connection already exists.', 'warning');
+  if (ed) Object.assign(ed, { from, to, label }); else links.push({ id: uid(), from, to, label });
+  mapDraft = { from, label, editId: '' };
+  if (saveHosts()) { openMap(); showMessage(ed ? 'Connection updated' : 'Connection added', 'success'); }
+}
+
+function renameGroup(name) {
+  openModal(`${modalHead('Rename group')}<div class="field"><label for="g-name">Group name</label><input id="g-name" value="${esc(name)}"></div>
+    <div class="modal-actions"><button class="btn accent" data-save>Save</button><button class="btn" data-close>Cancel</button></div>`, () => {
+    const n = $('#g-name').value.trim().slice(0, 50);
+    if (n === name) return closeModal();
+    hosts.forEach(h => { if (h.group === name) h.group = n; });
+    const map = g => g === name ? n : g, uniq = a => [...new Set(a.map(map))];
+    layout.order = uniq(layout.order); layout.collapsed = uniq(layout.collapsed);
+    if (saveHosts()) { closeModal(); render(); showMessage('Group renamed', 'success'); }
+  });
+}
+
+function openInfo() {
+  const box = (t, items) => `<div class="ibox"><h4>${t}</h4><ul>${items.map(([a, b]) => `<li><span class="it">${a}</span>- ${b}</li>`).join('')}</ul></div>`;
+  openModal(`${modalHead('Help &amp; Info')}
+    <h3>About</h3>
+    <div class="ibox"><h4>Web Network Manager by Mattias</h4>A browser-based inventory for the hosts and servers in your home or lab network: addresses, endpoints, schedules and notes, with one-click access to web interfaces. Everything is stored in this browser only, unencrypted.</div>
+    <h3>Features</h3>
+    ${box('Hosts', [['Add and edit', 'press N for a new host, / to search and Ctrl+Enter to save. Sections in the host form can be minimized.'], ['Reorder and group', 'drag a host to reorder it or move it to another group, and drag a group header to reorder groups. Clear search and filters first. “Reset order” sorts everything A-Z.'], ['Reuse values', 'role, group, hardware, OS, language and tags show “Used before” buttons that fill the field again.'], ['Tags', 'click a tag to filter by it, click again to clear.']])}
+    ${box('Networks and endpoints', [['Networks', 'give a host one address row per network (for example LAN and VPN). With two or more networks a network filter appears in the header, like the role filter: pick a network to show only hosts that have an address on it and to build all links from those addresses.'], ['Endpoints', 'function is the button text. Standard ports are filled in per scheme (http 80, https 443, ssh 22...) and can be changed.'], ['DNS and IP', 'with both on the active network you get a main button using the DNS name and a “via IP” button for when DNS is down.'], ['SSH', 'Copy gives a ready ssh command. “Launcher .bat” downloads a Windows file that opens a terminal and connects (a web page cannot start a terminal by itself).'], ['Custom URL', 'scheme “url” opens any full URL as typed.']])}
+    ${box('Network map', [['Map', 'the Map button draws the connections between hosts as lines with arrows. The arrow points to the host being used, for example a router pointing to the DNS servers it uses.'], ['Connections', 'add them inside the map: pick From, To and a label such as “DNS server”. Hosts are arranged in rows automatically and only hosts with connections are shown.']])}
+    ${box('Schedules and log', [['Schedules', 'recurring tasks per host such as updates, reboots or backups. Each has a name, manual or automatic, a repeat (every N days, or on specific days of the month such as the 1st and 2nd), a start date and a time window or note.'], ['Manual', 'shows when the task is due (orange within 7 days, red when overdue). Click Mark done after you have done it and the next due date counts from today.'], ['Automatic', 'only shows your note, for tasks that run by themselves.'], ['Log', 'records reboots, shutdowns, incidents, updates and notes with a time. Marking a reboot or update schedule as done adds a log entry.']])}
+    ${box('Notes and commands', [['Notes', 'free text for anything useful, such as login hints, location, serial number, warranty or purchase date. Start a line with “Login:” for a username or where the password lives (never the password itself). Those lines are left out of the Markdown export.'], ['Commands', 'each command line on a host card has its own Copy button, plus Copy all.']])}
+    ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. “Login:” lines are left out of the Markdown file, other notes and commands are included.'], ['Reset', 'deletes everything after typing RESET.']])}
+    <div class="modal-actions"><button class="btn" data-close>Close</button></div>`);
+}
+
+function openData() {
+  openModal(`${modalHead('Data Config')}
+    <p>${hosts.length} host${hosts.length === 1 ? '' : 's'} stored in this browser.</p>
+    <div class="modal-actions"><button class="btn accent" id="exportBtn">Export JSON backup</button><button class="btn" id="mdBtn">Export readable (Markdown)</button><button class="btn" id="importBtn">Import JSON</button></div>
+    <div class="hint">Importing replaces all current hosts.</div>
+    <div class="danger-zone"><h3 style="color:var(--error-color);margin-top:0">Danger Zone</h3>
+    <button class="btn danger" id="resetBtn">Reset all data</button>
+    <div id="resetStep" class="hide"><div class="field" style="margin-top:12px"><label for="resetInput">Type RESET to confirm. This cannot be undone.</label><input id="resetInput" autocomplete="off"></div>
+    <button class="btn danger" id="resetConfirm" disabled>Permanently delete all hosts</button></div></div>
+    <div class="modal-actions"><button class="btn" data-close>Close</button></div>`);
+}
+
+/* ===== Events ===== */
+$('#addBtn').onclick = () => openHost();
+$('#infoBtn').onclick = openInfo;
+$('#mapBtn').onclick = () => { mapDraft.editId = ''; openMap(); };
+$('#dataBtn').onclick = openData;
+$('#search').oninput = render;
+$('#roleFilter').onchange = render;
+$('#themeBtn').onclick = () => {
+  const dark = document.body.classList.toggle('dark-mode');
+  try { localStorage.setItem(STORE.theme, dark ? 'dark' : 'light'); } catch {}
+};
+$('#hosts').onclick = async e => {
+  const gb = e.target.closest('[data-gact]');
+  if (gb) {
+    const name = gb.closest('.group').dataset.group;
+    if (gb.dataset.gact === 'rename') return renameGroup(name);
+    const i = layout.collapsed.indexOf(name);
+    if (i < 0) layout.collapsed.push(name); else layout.collapsed.splice(i, 1);
+    saveHosts(); return render();
+  }
+  const tg = e.target.closest('[data-tag]');
+  if (tg) { activeTag = activeTag === tg.dataset.tag ? '' : tg.dataset.tag; return render(); }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const id = b.closest('.host').dataset.id, h = hosts.find(x => x.id === id);
+  if (!h) return;
+  if (b.dataset.act === 'edit') openHost(id);
+  if (b.dataset.act === 'log') openLog(id);
+  if (b.dataset.act === 'sshbat') { dl('ssh-' + b.dataset.n.replace(/[^\w.-]+/g, '-') + '.bat', '@echo off\r\n' + b.dataset.v + '\r\npause\r\n', 'application/octet-stream'); showMessage('Launcher downloaded. Double-click it to open a terminal and connect.', 'info'); }
+  if (b.dataset.act === 'done') {
+    const sc = h.schedules[+b.dataset.i]; if (!sc) return;
+    sc.last = today();
+    const ty = /restart|reboot/i.test(sc.name) ? 'reboot' : /updat|patch|upgrad/i.test(sc.name) ? 'update' : 'note';
+    h.log.push({ t: nowStamp(), type: ty, text: ty === 'note' ? `${sc.name} done` : '' });
+    if (saveHosts()) { render(); showMessage(`${h.name}: ${sc.name} marked as done`, 'success'); }
+  }
+  if (b.dataset.act === 'copy') {
+    try { await navigator.clipboard.writeText(b.dataset.v); showMessage(b.dataset.v.length > 60 ? 'Copied to clipboard' : `Copied ${b.dataset.v}`, 'info'); }
+    catch { showMessage('Could not access the clipboard.'); }
+  }
+};
+$('#tagBar').onclick = e => { const t = e.target.closest('[data-tag]'); if (t) { activeTag = activeTag === t.dataset.tag ? '' : t.dataset.tag; render(); } };
+$('#netSel').onchange = () => { layout.net = $('#netSel').value; saveHosts(); render(); };
+$('#resetOrder').onclick = () => {
+  hosts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  layout.order = [...new Set(hosts.map(h => h.group))].sort((a, b) => (!a - !b) || a.localeCompare(b));
+  if (saveHosts()) { render(); showMessage('Order reset to A–Z', 'success'); }
+};
+$('#overlay').onclick = e => {
+  if (e.target.closest('[data-close]')) return closeModal();
+  if (e.target.id === 'overlay') return downOnBackdrop && softClose();
+  const add = e.target.closest('[data-add]');
+  if (add) { const k = add.dataset.add; $('#' + k).insertAdjacentHTML('beforeend', k === 'addrs' ? addrRow({ net: defNet(), ip: '', dns: '' }) : k === 'scheds' ? schedRow({ name: '', mode: 'manual', days: '', start: '', last: '', note: '' }) : epRow({ label: '', scheme: 'https', port: '443', path: '' })); dirty = true; return; }
+  const rm = e.target.closest('[data-rm]');
+  if (rm) { rm.closest('.arow,.erow,.srow').remove(); dirty = true; return; }
+  const ld = e.target.closest('[data-logdel]');
+  if (ld) { const h = hosts.find(x => x.id === editingId); if (h) { h.log.splice(+ld.dataset.logdel, 1); saveHosts(); render(); openLog(editingId); } return; }
+  const ld2 = e.target.closest('[data-ldel]');
+  if (ld2) { links = links.filter(l => l.id !== ld2.dataset.ldel); if (mapDraft.editId === ld2.dataset.ldel) mapDraft.editId = ''; saveHosts(); openMap(); return; }
+  const le = e.target.closest('[data-ledit]');
+  if (le) { mapDraft.editId = le.dataset.ledit; openMap(); return; }
+  if (e.target.closest('[data-canceledit]')) { mapDraft.editId = ''; openMap(); return; }
+  const chip = e.target.closest('[data-fill],[data-row]');
+  if (chip) {
+    const f = chip.dataset.row ? chip.closest('.arow,.srow').querySelector(chip.dataset.row) : $('#' + chip.dataset.fill);
+    f.value = chip.hasAttribute('data-append') && f.value.trim() ? f.value.replace(/[,\s]*$/, '') + ', ' + chip.dataset.v : chip.dataset.v;
+    f.focus(); dirty = true; return;
+  }
+  const t = e.target.closest('button'); if (!t) return;
+  if (t.hasAttribute('data-save') && modalSave) modalSave();
+  if (t.hasAttribute('data-delete')) {
+    const id = editingId;
+    if (!deleteArmed) { deleteArmed = true; t.textContent = 'Click again to confirm'; showMessage('Click “Delete host” again to permanently remove it.', 'warning'); setTimeout(() => { deleteArmed = false; if (t.isConnected) t.textContent = 'Delete host'; }, MESSAGE_DURATION_LONG); return; }
+    const gone = hosts.find(h => h.id === id);
+    hosts = hosts.filter(h => h.id !== id); links = links.filter(l => l.from !== id && l.to !== id);
+    if (saveHosts()) { closeModal(); render(); showMessage(`Deleted ${gone ? gone.name : 'host'}`, 'success'); }
+  }
+  if (t.id === 'exportBtn') {
+    const blob = new Blob([JSON.stringify({ app: 'network-manager', schema: SCHEMA, exported: new Date().toISOString(), hosts, layout, links }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `web-network-manager-backup-${today()}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showMessage('Backup exported', 'success');
+  }
+  if (t.id === 'importBtn') $('#importFile').click();
+  if (t.id === 'mdBtn') { dl(`network-inventory-${today()}.md`, toMarkdown(), 'text/markdown'); showMessage('Readable export created', 'success'); }
+  if (t.id === 'resetBtn') { $('#resetStep').classList.remove('hide'); t.classList.add('hide'); $('#resetInput').focus(); }
+  if (t.id === 'resetConfirm' && $('#resetInput').value === 'RESET') {
+    hosts = []; layout = sanitizeLayout(); links = []; if (saveHosts()) { closeModal(); render(); showMessage('All data was reset', 'success'); }
+  }
+};
+$('#overlay').onpointerdown = e => { downOnBackdrop = e.target.id === 'overlay'; };
+$('#overlay').oninput = e => { if (e.target.id !== 'resetInput') dirty = true; if (e.target.id === 'resetInput') $('#resetConfirm').disabled = e.target.value !== 'RESET'; };
+$('#overlay').onchange = e => {
+  const t = e.target; dirty = true;
+  if (t.classList.contains('s-repeat')) { const r = t.closest('.srow'), m = t.value === 'month'; r.querySelector('.s-daysbox').classList.toggle('hide', m); r.querySelector('.s-monthbox').classList.toggle('hide', !m); }
+  if (t.classList.contains('e-scheme')) {
+    const r = t.closest('.erow'), u = t.value === 'url', port = r.querySelector('.e-port'), old = t.dataset.prev;
+    if (!port.value.trim() || old === 'url' || port.value.trim() === String(DEF[old] || '')) port.value = DEF[t.value] || '';
+    t.dataset.prev = t.value;
+    port.placeholder = u ? 'Full URL' : (DEF[t.value] || 'Port');
+    r.querySelector('.e-path').placeholder = t.value === 'ssh' ? 'Username' : '/path';
+    r.querySelector('.e-path').classList.toggle('hide', u);
+  }
+};
+$('#importFile').onchange = async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    if (storageLocked) return saveHosts();
+    const data = JSON.parse(await file.text());
+    const arr = Array.isArray(data) ? data : data.hosts;
+    if (!Array.isArray(arr)) throw new Error();
+    const from = Number.isInteger(data.schema) ? data.schema : 0;
+    if (from > SCHEMA) return showMessage('This backup was made by a newer version of the app.\nUpdate the page before importing it.');
+    const d = normalize(migrate({ hosts: arr.filter(h => h && typeof h === 'object' && h.name), layout: data.layout, links: data.links }, from));
+    hosts = d.hosts; layout = d.layout; links = d.links;
+    if (saveHosts()) { closeModal(); render(); showMessage(`Imported ${hosts.length} host${hosts.length === 1 ? '' : 's'}`, 'success'); }
+  } catch { showMessage('Import failed: the file is not a valid Web Network Manager backup.'); }
+};
+document.addEventListener('keydown', e => {
+  const open = !$('#overlay').classList.contains('hide');
+  if (e.key === 'Escape' && open) return e.isComposing ? undefined : softClose();
+  if (open) {
+    if (modalSave && ((e.key === 'Enter' && e.ctrlKey) || (e.key === 'Enter' && e.target.tagName === 'INPUT'))) { e.preventDefault(); modalSave(); }
+    return;
+  }
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === 'n') { e.preventDefault(); openHost(); }
+  if (e.key === '/') { e.preventDefault(); $('#search').focus(); }
+});
+
+/* ===== Drag and drop ===== */
+let drag = null;
+const filtered = () => !!($('#search').value.trim() || $('#roleFilter').value || activeTag || curNet());
+function startDrag() {
+  if (!drag || drag.active) return;
+  if (filtered()) { showMessage('Clear the search and role filter to reorder.', 'info'); drag = null; return; }
+  drag.active = true; clearTimeout(drag.timer);
+  (drag.card || drag.group).classList.add('dragging');
+  document.body.classList.add('is-dragging');
+  getSelection()?.removeAllRanges(); navigator.vibrate?.(15);
+  autoScroll();
+}
+function commitOrder() {
+  const byId = new Map(hosts.map(h => [h.id, h])), out = [], order = [];
+  document.querySelectorAll('#hosts .group').forEach(g => {
+    order.push(g.dataset.group);
+    g.querySelectorAll('.host').forEach(c => { const h = byId.get(c.dataset.id); if (h) { h.group = g.dataset.group; out.push(h); } });
+  });
+  if (out.length === hosts.length) { hosts = out; layout.order = order; saveHosts(); }
+  render();
+}
+function endDrag(e) {
+  if (!drag || (e && e.pointerId !== drag.id)) return;
+  clearTimeout(drag.timer);
+  const was = drag.active;
+  if (was) { (drag.card || drag.group).classList.remove('dragging'); document.body.classList.remove('is-dragging'); }
+  drag = null;
+  if (was) commitOrder();
+}
+function moveAt(x, y) {
+  if (!drag || !drag.active) return;
+  const place = (t, el, after) => { if (after && t.nextElementSibling !== el) t.after(el); else if (!after && t.previousElementSibling !== el) t.before(el); };
+  if (drag.card) {
+    for (const g of document.querySelectorAll('#hosts .group-head')) {
+      const r = g.getBoundingClientRect();
+      if (y >= r.top && y <= r.bottom && g.parentElement !== drag.card.closest('.group')) { g.parentElement.querySelector('.cards').prepend(drag.card); return; }
+    }
+    for (const s of document.querySelectorAll('#hosts .host')) {
+      if (s === drag.card) continue;
+      const r = s.getBoundingClientRect();
+      if (r.width && x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 16 && y <= r.bottom + 16) {
+        const same = Math.abs(r.top - drag.card.getBoundingClientRect().top) < 30;
+        place(s, drag.card, same ? x > r.left + r.width / 2 : y > r.top + r.height / 2);
+        return;
+      }
+    }
+  } else {
+    for (const g of document.querySelectorAll('#hosts .group')) {
+      if (g === drag.group) continue;
+      const r = g.getBoundingClientRect();
+      if (y >= r.top && y <= r.bottom) { place(g, drag.group, y > r.top + r.height / 2); break; }
+    }
+  }
+}
+function autoScroll() {
+  if (!drag || !drag.active) return;
+  const edge = 70, y = drag.cy;
+  if (y < edge) scrollBy(0, -Math.ceil((edge - y) / 5));
+  else if (y > innerHeight - edge) scrollBy(0, Math.ceil((y - (innerHeight - edge)) / 5));
+  moveAt(drag.cx, drag.cy);
+  requestAnimationFrame(autoScroll);
+}
+$('#hosts').addEventListener('pointerdown', e => {
+  if (drag || (e.pointerType === 'mouse' && e.button !== 0) || e.target.closest('a,button,.notes,details')) return;
+  const card = e.target.closest('.host'), group = e.target.closest('.group');
+  if (!group || (!card && !e.target.closest('.group-head'))) return;
+  drag = { card, group, id: e.pointerId, type: e.pointerType, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false, timer: null };
+  if (e.pointerType !== 'mouse') drag.timer = setTimeout(startDrag, 350);
+});
+document.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.id) return;
+  drag.cx = e.clientX; drag.cy = e.clientY;
+  if (drag.active) return moveAt(drag.cx, drag.cy);
+  const moved = Math.hypot(e.clientX - drag.x, e.clientY - drag.y);
+  if (drag.type === 'mouse') { if (moved > 6) startDrag(); }
+  else if (moved > 10) { clearTimeout(drag.timer); drag = null; }
+});
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
+document.addEventListener('touchmove', e => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
+document.addEventListener('selectstart', e => { if (drag && drag.active) e.preventDefault(); });
+$('#hosts').addEventListener('contextmenu', e => { if (drag && drag.type !== 'mouse') e.preventDefault(); });
+
+/* ===== Init ===== */
+try { if (localStorage.getItem(STORE.theme) === 'light') document.body.classList.remove('dark-mode'); } catch {}
+boot();
+render();
+</script>
+</body>
+</html>
