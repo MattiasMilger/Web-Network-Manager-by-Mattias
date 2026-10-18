@@ -106,6 +106,7 @@ input[type=checkbox] { width:auto; }
 .logrow { display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--separator-color); font-size:.88em; }
 details.rb { margin-top:8px; font-size:.88em; }
 details.rb summary { cursor:pointer; color:var(--accent-color); font-weight:bold; }
+details.rb .notes { margin-top:6px; font-size:1em; }
 .ibox { background:var(--entry-bg); border-left:3px solid var(--accent-color); border-radius:4px; padding:10px 14px; margin-bottom:12px; font-size:.9em; line-height:1.5; }
 .ibox h4 { margin:0 0 6px; color:var(--accent-color); font-size:1em; }
 .ibox ul { padding-left:20px; margin:0; }
@@ -460,7 +461,7 @@ function cardHtml(h, q) {
     <div class="meta">${info ? info + '<br>' : ''}${sched}${last ? `<br>Last event: ${esc(last.type)}, ${esc(last.t.replace('T', ' '))}` : ''}</div>
     ${h.tags.length ? `<div class="tags">${h.tags.map(t => `<button class="chip tag${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}">${hl(t, q)}</button>`).join('')}</div>` : ''}
     ${links ? `<div class="links">${links}</div>` : ''}
-    ${h.notes ? `<div class="notes">${hl(h.notes, q)}</div>` : ''}
+    ${h.notes ? `<details class="rb nt"${q && h.notes.toLowerCase().includes(q.toLowerCase()) ? ' open' : ''}><summary>Notes</summary><div class="notes">${hl(h.notes, q)}</div></details>` : ''}
     ${rbHtml(h)}
     <div class="actions"><button class="btn sm" data-act="edit">Edit</button><button class="btn sm" data-act="log">Log${h.log.length ? ' (' + h.log.length + ')' : ''}</button>${h.schedules.map((x, k) => x.mode === 'manual' ? `<button class="btn sm" data-act="done" data-i="${k}">Mark ${esc(x.name.toLowerCase())} done</button>` : '').join('')}</div>
   </div>`;
