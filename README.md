@@ -21,8 +21,7 @@ Open `index.html` in a modern browser. No build tools or dependencies required.
 - **Schedules** - Recurring tasks per host, such as updates, reboots or backups. Each schedule has a name, a type (manual or automatic), a repeat (every N days, or on specific days of the month such as the 1st and 2nd), a start date and a time window / note. Manual schedules turn orange when due within 7 days and red when overdue; **Mark ... done** records the date and counts the next due date from today. Automatic schedules just show your note. The app never runs anything itself.
 - **Network map** - A separate **Map** view draws the connections between hosts as simple lines with arrows and labels, for example a router pointing to the DNS servers it uses. Connections are added inside the map and hosts are arranged automatically.
 - **Log** - Record reboots, shutdowns, incidents, updates and notes with a date and time, per host.
-- **Commands & routines** - Save useful commands per host, one per line (`#` for comments). Every command has its own **Copy** button, plus **Copy all**.
-- **Notes** - Free text per host for anything useful, such as login hints, location, serial number or warranty. Lines starting with `Login:` are left out of the Markdown export.
+- **Notes & commands** - Keep as many titled entries per host as you like, for anything you want to store and copy: a Docker compose YAML, useful commands, location, serial number or warranty. Every entry is a separate collapsible section on the host card with a **Copy** button, so only the ones you open are shown.
 - **Groups** - Group hosts, collapse and expand groups, and rename them.
 - **Drag and drop ordering** - Drag a host to reorder it or move it to another group, and drag a group header to reorder groups. On touch screens, press and hold first. **Reset order** sorts everything A-Z.
 - **Search & filters** - Live search with highlighting, a role filter, a network filter and clickable tag filters.
@@ -59,10 +58,10 @@ Web Network Manager by Mattias/
 - **No external dependencies** - pure vanilla HTML, CSS, and JavaScript.
 - **Client-side only** - No data is transmitted to any server. Hosts are never pinged or probed.
 - **Storage** - Data is saved in `localStorage` under the keys `netmanager.hosts` (hosts), `netmanager.layout` (group order, collapsed groups, active network), `netmanager.links` (map connections), `netmanager.schema` (data format version), `netmanager.backup` (copy of the previous data, written once when an upgrade changes the stored format) and `netmanager.theme`. It is stored **unencrypted** and `localStorage` is shared by every app on the same origin, so do not store passwords. Use a password manager and note only where the password lives.
-- **Data model** - Each host stores its addresses per network, endpoints, tags, schedules, log entries, commands and notes. All loaded and imported data is validated and normalised before use.
+- **Data model** - Each host stores its addresses per network, endpoints, tags, schedules, log entries, and a list of titled notes and commands (up to 40 entries, 20,000 characters per entry). All loaded and imported data is validated and normalised before use.
 - **Compatibility** - Every save records a schema version. When a newer release changes the stored format, the old data is upgraded automatically and the previous copy is kept in `netmanager.backup`. JSON backups from older releases still import. If saved data comes from a *newer* release than the page you opened, the app shows it read-only and refuses to save, so nothing is overwritten.
 - **Input handling** - Imported data is sanitised: addresses, ports and SSH usernames are validated before they are used to build links or the `.bat` launcher.
-- **Markdown export** - Includes notes, commands and logs, but leaves out lines starting with `Login:`.
+- **Markdown export** - Includes notes and commands (under their titles, as code blocks) and logs.
 - **Pointer events** - Drag and drop supports mouse, touch (long-press) and pen input.
 - **Design** - Follows the shared design guidelines: dark-first with a light alternate theme, flat panels, floating message banners, no tooltips and no native browser dialogs.
 

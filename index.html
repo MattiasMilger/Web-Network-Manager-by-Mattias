@@ -106,7 +106,10 @@ input[type=checkbox] { width:auto; }
 .logrow { display:flex; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--separator-color); font-size:.88em; }
 details.rb { margin-top:8px; font-size:.88em; }
 details.rb summary { cursor:pointer; color:var(--accent-color); font-weight:bold; }
-details.rb .notes { margin-top:6px; font-size:1em; }
+details.rb .notes { margin-top:6px; font-size:.9em; font-family:Consolas,Monaco,monospace; }
+.sub { font-size:.85em; font-weight:bold; color:var(--category-color); margin:10px 0 6px; }
+.drow { padding:8px 0; border-bottom:1px solid var(--separator-color); }
+.drow textarea { margin-top:6px; }
 .ibox { background:var(--entry-bg); border-left:3px solid var(--accent-color); border-radius:4px; padding:10px 14px; margin-bottom:12px; font-size:.9em; line-height:1.5; }
 .ibox h4 { margin:0 0 6px; color:var(--accent-color); font-size:1em; }
 .ibox ul { padding-left:20px; margin:0; }
@@ -118,10 +121,6 @@ details.fs > summary::-webkit-details-marker { display:none; }
 details.fs > summary::before { content:'▸ '; }
 details.fs[open] > summary::before { content:'▾ '; }
 .fsb { padding:4px 0 6px; }
-.cl { display:flex; gap:8px; align-items:center; margin-top:5px; }
-.cl code { flex:1; font-family:Consolas,Monaco,monospace; font-size:.9em; background:var(--container-bg); border:1px solid var(--separator-color); border-radius:4px; padding:5px 8px; word-break:break-all; user-select:text; }
-.cm { color:var(--category-color); font-weight:bold; margin-top:10px; font-family:Consolas,Monaco,monospace; font-size:.9em; }
-.cmt { color:var(--category-color); font-weight:bold; }
 .srow { padding:8px 0; border-bottom:1px solid var(--separator-color); }
 .modal.wide { max-width:920px; }
 .mapsvg { display:block; margin:6px auto 0; width:100%; height:auto; max-height:65vh; }
@@ -206,7 +205,7 @@ footer .footer-portfolio { margin-top:8px; font-size:.85em; opacity:.7; }
 /* Saved-data format: every save writes SCHEMA. To change the format, bump SCHEMA and add
    MIGRATIONS[<previous version>] (see "Data model"). A build never overwrites newer data. */
 const STORE = { hosts: 'netmanager.hosts', layout: 'netmanager.layout', links: 'netmanager.links', schema: 'netmanager.schema', backup: 'netmanager.backup', theme: 'netmanager.theme' };
-const SCHEMA = 1;
+const SCHEMA = 3;
 const MESSAGE_DURATION_SHORT = 2000, MESSAGE_DURATION_LONG = 3500;
 const SCHEMES = ['http', 'https', 'ssh', 'rdp', 'vnc', 'smb', 'ftp', 'url'];
 const DEF = { http: 80, https: 443, ssh: 22, rdp: 3389, vnc: 5900, smb: 445, ftp: 21 };
@@ -269,6 +268,11 @@ function cleanEndpoint(e) {
 }
 const cleanLog = list => (Array.isArray(list) ? list : []).map(l => ({ t: str(l?.t, 16), type: str(l?.type, 12) || 'note', text: str(l?.text, 300) })).filter(l => l.t).slice(-100);
 
+/* Notes (and the former commands) are one list of { title, text }. A plain string (schema 1 and older) becomes one entry. */
+const docsFromText = (v, title) => typeof v === 'string' ? (v.trim() ? [{ title, text: v }] : []) : (Array.isArray(v) ? v : []);
+const cleanDocs = (v, def) => docsFromText(v, def).slice(0, 40).map(d => ({ title: str(d?.title, 60), text: String(d?.text ?? '').slice(0, 20000) }))
+  .filter(d => d.title || d.text.trim()).map(d => ({ ...d, title: d.title || def }));
+
 function sanitize(h) {
   return {
     id: str(h.id || uid(), 40), name: str(h.name, 100), emoji: str(h.emoji, 16), role: str(h.role, 50), os: str(h.os, 100),
@@ -276,7 +280,7 @@ function sanitize(h) {
     tags: [...new Set((Array.isArray(h.tags) ? h.tags : []).map(t => str(t, 30)).filter(Boolean))].slice(0, 20),
     endpoints: (Array.isArray(h.endpoints) ? h.endpoints : []).map(cleanEndpoint).filter(Boolean),
     schedules: cleanSchedules(h.schedules), log: cleanLog(h.log),
-    runbook: String(h.runbook ?? '').slice(0, 10000), notes: String(h.notes ?? '').slice(0, 5000)
+    notes: cleanDocs(h.notes, 'Notes')
   };
 }
 function sanitizeLinks(a, hs = hosts) {
@@ -319,7 +323,12 @@ function migrateHostV0(h) {
     endpoints: (Array.isArray(h.endpoints) ? h.endpoints : []).map(e => e && !e.scheme ? legacyEndpoint(e, known) : e)
   };
 }
-const MIGRATIONS = { 0: d => ({ ...d, hosts: d.hosts.map(migrateHostV0) }) };
+/* Schema 1 = notes and commands were single text fields; schema 2 = each a list of titled entries; schema 3 = one merged list (notes). */
+const MIGRATIONS = {
+  0: d => ({ ...d, hosts: d.hosts.map(migrateHostV0) }),
+  1: d => ({ ...d, hosts: d.hosts.map(h => ({ ...h, notes: docsFromText(h.notes, 'Notes'), runbook: docsFromText(h.runbook, 'Commands & routines') })) }),
+  2: d => ({ ...d, hosts: d.hosts.map(({ runbook, ...h }) => ({ ...h, notes: [...docsFromText(h.notes, 'Notes'), ...docsFromText(runbook, 'Commands & routines')] })) })
+};
 function migrate(d, from) {
   for (let v = from; v < SCHEMA; v++) d = MIGRATIONS[v](d);
   return d;
@@ -407,8 +416,7 @@ function toMarkdown() {
       h.addrs.forEach(a => { o += f(a.net, [a.ip, a.dns].filter(Boolean).join(' / ')); });
       h.endpoints.forEach(e => { o += f(e.label || e.scheme, epUrl(e, A.dns || A.ip)); });
       h.schedules.forEach(sc => { o += f(sc.name, (sc.mode === 'auto' ? 'automatic' : 'manual') + (sc.repeat === 'month' ? `, on the ${sc.monthDays.map(ord).join(', ')} of each month` : sc.days ? `, every ${sc.days} days` : '') + (sc.start ? `, from ${sc.start}` : '') + (sc.last ? `, last ${sc.last}` : '') + (sc.note ? `, ${sc.note}` : '')); });
-      const nt = h.notes.split('\n').filter(l => !/^\s*login\s*:/i.test(l)).join('\n').trim(); if (nt) o += `\n${nt}\n`;
-      if (h.runbook) o += '\n```\n' + h.runbook + '\n```\n';
+      h.notes.forEach(n => { const nt = n.text.trim(); if (nt) o += `\n**${n.title}**\n\n` + '```\n' + nt + '\n```\n'; });
       if (h.log.length) o += '\n**Log**\n\n' + h.log.slice().sort((a, b) => a.t < b.t ? 1 : -1).map(l => `- ${l.t.replace('T', ' ')} ${l.type}${l.text ? ': ' + l.text : ''}`).join('\n') + '\n';
     });
   });
@@ -418,18 +426,7 @@ function toMarkdown() {
 }
 
 /* ===== Rendering ===== */
-const cmtAt = l => {
-  let q = '';
-  for (let i = 0; i < l.length; i++) {
-    const c = l[i];
-    if (q) { if (c === '\\' && q === '"') i++; else if (c === q) q = ''; }
-    else if (c === '"' || c === "'") q = c;
-    else if (c === '#' && (i === 0 || /\s/.test(l[i - 1]))) return i;
-  }
-  return -1;
-};
-const cmtHtml = l => { const i = cmtAt(l); return i < 0 ? esc(l) : `${esc(l.slice(0, i))}<span class="cmt">${esc(l.slice(i))}</span>`; };
-const rbHtml = h => h.runbook ? `<details class="rb"><summary>Commands &amp; routines</summary>${h.runbook.split('\n').map(l => !l.trim() ? '' : /^\s*#/.test(l) ? `<div class="cm">${esc(l)}</div>` : `<div class="cl"><code>${cmtHtml(l)}</code><button class="btn sm" data-act="copy" data-v="${esc(l.trim())}">Copy</button></div>`).join('')}<div style="margin-top:8px"><button class="btn sm" data-act="copy" data-v="${esc(h.runbook)}">Copy all</button></div></details>` : '';
+const noteHtml = (n, q) => `<details class="rb nt"${q && (n.title + '\n' + n.text).toLowerCase().includes(q.toLowerCase()) ? ' open' : ''}><summary>${hl(n.title, q)}</summary><div class="notes">${hl(n.text, q)}</div><div style="margin-top:8px"><button class="btn sm" data-act="copy" data-v="${esc(n.text)}">Copy</button></div></details>`;
 function cardHtml(h, q) {
   const infos = h.schedules.map(schedInfo), cls = infos.reduce((a, x) => RANK[x.cls] > RANK[a] ? x.cls : a, ''), A = pickAddr(h, view.net), multi = view.multi || h.addrs.length > 1;
   const sched = infos.map((x, k) => `<span class="${x.cls}">${esc(h.schedules[k].name)}: ${esc(x.text)}</span>`).join('<br>');
@@ -461,8 +458,7 @@ function cardHtml(h, q) {
     <div class="meta">${info ? info + '<br>' : ''}${sched}${last ? `<br>Last event: ${esc(last.type)}, ${esc(last.t.replace('T', ' '))}` : ''}</div>
     ${h.tags.length ? `<div class="tags">${h.tags.map(t => `<button class="chip tag${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}">${hl(t, q)}</button>`).join('')}</div>` : ''}
     ${links ? `<div class="links">${links}</div>` : ''}
-    ${h.notes ? `<details class="rb nt"${q && h.notes.toLowerCase().includes(q.toLowerCase()) ? ' open' : ''}><summary>Notes</summary><div class="notes">${hl(h.notes, q)}</div></details>` : ''}
-    ${rbHtml(h)}
+    ${h.notes.map(n => noteHtml(n, q)).join('')}
     <div class="actions"><button class="btn sm" data-act="edit">Edit</button><button class="btn sm" data-act="log">Log${h.log.length ? ' (' + h.log.length + ')' : ''}</button>${h.schedules.map((x, k) => x.mode === 'manual' ? `<button class="btn sm" data-act="done" data-i="${k}">Mark ${esc(x.name.toLowerCase())} done</button>` : '').join('')}</div>
   </div>`;
 }
@@ -480,7 +476,7 @@ function render() {
   $('#tagBar').innerHTML = tags.map(t => `<button class="chip${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('');
   const role = rf.value, q = $('#search').value.trim(), ql = q.toLowerCase(), net = curNet(), filt = !!(q || role || activeTag || net);
   const list = hosts.filter(h => (!role || h.role === role) && (!activeTag || h.tags.includes(activeTag)) && (!net || h.addrs.some(a => a.net === net)) &&
-    (!ql || [h.name, h.role, h.os, h.lang, h.hardware, h.group, h.notes, h.tags.join(' '), ...h.addrs.map(a => `${a.net} ${a.ip} ${a.dns}`), ...h.endpoints.map(e => e.label + ' ' + e.port)].join(' ').toLowerCase().includes(ql)));
+    (!ql || [h.name, h.role, h.os, h.lang, h.hardware, h.group, ...h.notes.map(n => n.title + ' ' + n.text), h.tags.join(' '), ...h.addrs.map(a => `${a.net} ${a.ip} ${a.dns}`), ...h.endpoints.map(e => e.label + ' ' + e.port)].join(' ').toLowerCase().includes(ql)));
   $('#count').textContent = hosts.length ? `Showing ${list.length} of ${hosts.length} host${hosts.length === 1 ? '' : 's'}` : '';
   $('#resetOrder').parentElement.classList.toggle('hide', !hosts.length);
   if (!hosts.length) { $('#hosts').innerHTML = '<div class="empty">No hosts yet.<br>Click “+ Add Host” to document your first device.</div>'; return; }
@@ -527,9 +523,12 @@ const schedRow = s => `<div class="srow"><div class="r"><input class="s-name" va
 const addrRow = a => `<div class="arow"><div class="r"><input class="a-net" value="${esc(a.net)}" placeholder="Network" style="flex:0 0 110px"><input class="a-ip" value="${esc(a.ip)}" placeholder="IP address" style="flex:1 1 120px"><input class="a-dns" value="${esc(a.dns)}" placeholder="DNS name" style="flex:1 1 140px"><button type="button" class="x" data-rm aria-label="Remove address">×</button></div>${nets().length ? `<div class="chips">${nets().map(n => `<button type="button" class="chip" data-row=".a-net" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}</div>`;
 const epRow = e => `<div class="erow"><div class="r"><input class="e-label" value="${esc(e.label)}" placeholder="Function (Web UI, SSH...)" style="flex:2 1 150px"><select class="e-scheme" data-prev="${e.scheme}" style="flex:0 0 84px">${SCHEMES.map(x => `<option${x === e.scheme ? ' selected' : ''}>${x}</option>`).join('')}</select><input class="e-port" value="${esc(e.port)}" placeholder="${e.scheme === 'url' ? 'Full URL' : (DEF[e.scheme] || 'Port')}" style="flex:1 1 90px"><input class="e-path${e.scheme === 'url' ? ' hide' : ''}" value="${esc(e.path)}" placeholder="${e.scheme === 'ssh' ? 'Username' : '/path'}" style="flex:1 1 90px"><button type="button" class="x" data-rm aria-label="Remove endpoint">×</button></div></div>`;
 
+const docRow = d => `<div class="drow"><div class="r"><input class="d-title" value="${esc(d.title)}" placeholder="Title (Compose YAML, Restart stack, Warranty...)" style="flex:1 1 150px"><button type="button" class="x" data-rm aria-label="Remove entry">×</button></div>
+  <textarea class="d-text mono" placeholder="docker compose restart&#10;Anything you want to keep and copy...">${esc(d.text)}</textarea></div>`;
+
 function openHost(id) {
   editingId = id || null;
-  const h = hosts.find(x => x.id === id) || { name: '', emoji: '', role: '', os: '', lang: '', hardware: '', group: '', tags: [], addrs: [{ net: defNet(), ip: '', dns: '' }], endpoints: [], schedules: [], runbook: '', notes: '' };
+  const h = hosts.find(x => x.id === id) || { name: '', emoji: '', role: '', os: '', lang: '', hardware: '', group: '', tags: [], addrs: [{ net: defNet(), ip: '', dns: '' }], endpoints: [], schedules: [], notes: [] };
   const ut = [...new Set(hosts.flatMap(x => x.tags))].sort();
   const fs = (t, open, body) => `<details class="fs"${open ? ' open' : ''}><summary>${t}</summary><div class="fsb">${body}</div></details>`;
   openModal(`${modalHead(id ? 'Edit Host' : 'Add Host')}
@@ -546,8 +545,8 @@ function openHost(id) {
       <div id="addrs">${h.addrs.map(addrRow).join('')}</div><button type="button" class="btn sm" data-add="addrs">+ Add address</button>`)}
     ${fs('Endpoints', true, `<div id="eps">${h.endpoints.map(epRow).join('')}</div><button type="button" class="btn sm" data-add="eps">+ Add endpoint</button>`)}
     ${fs('Schedules', h.schedules.length > 0, `<div id="scheds">${h.schedules.map(schedRow).join('')}</div><button type="button" class="btn sm" data-add="scheds">+ Add schedule</button>`)}
-    ${fs('Notes &amp; commands', !!(h.notes || h.runbook), `<div class="field"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Login: admin (password in Bitwarden)&#10;Location: rack 2, shelf 3&#10;Serial number, warranty, purchase date...">${esc(h.notes)}</textarea></div>
-      <div class="field"><label for="f-runbook">Commands &amp; routines (one command per line, # for comments)</label><textarea id="f-runbook" class="mono" placeholder="# restart the stack&#10;docker compose restart">${esc(h.runbook)}</textarea></div>`)}
+    ${fs('Notes &amp; commands', h.notes.length > 0, `<div class="hint" style="margin-bottom:6px">Each entry is its own collapsible section on the host card with a Copy button.</div>
+      <div id="notes">${h.notes.map(n => docRow(n)).join('')}</div><button type="button" class="btn sm" data-add="notes">+ Add note</button>`)}
     <div class="modal-actions"><button class="btn accent" data-save>Save host</button><button class="btn" data-close>Cancel</button>
     ${id ? '<button class="btn danger spacer" data-delete>Delete host</button>' : ''}</div>
     <div class="hint">Ctrl+Enter saves, Escape closes.</div>`, () => saveHost(id));
@@ -579,8 +578,9 @@ function saveHost(id) {
   const schedules = all('.srow').map(r => ({ name: q(r, '.s-name'), mode: q(r, '.s-mode'), repeat: q(r, '.s-repeat'), days: q(r, '.s-days'), monthDays: q(r, '.s-month'), start: q(r, '.s-start'), last: r.querySelector('.s-last') ? q(r, '.s-last') : '', note: q(r, '.s-note') })).filter(x => x.name || x.days || x.monthDays || x.start || x.note);
   const badSc = schedules.find(x => x.repeat === 'month' && !parseMonthDays(x.monthDays).length);
   if (badSc) return showMessage(`“${badSc.name || 'Schedule'}”: enter at least one day of the month (1-31).`);
+  const docs = () => all('.drow').map(r => ({ title: q(r, '.d-title'), text: r.querySelector('.d-text').value.trimEnd() }));
   const rec = sanitize({ id: id || uid(), name, emoji: v('emoji'), role: v('role'), os: v('os'), lang: v('lang'), hardware: v('hardware'), group: v('group'),
-    tags: v('tags').split(','), addrs, endpoints, runbook: $('#f-runbook').value, notes: $('#f-notes').value.trim(),
+    tags: v('tags').split(','), addrs, endpoints, notes: docs(),
     schedules, log: old ? old.log : [] });
   const dupe = hosts.find(o => o.id !== rec.id && o.addrs.some(a => rec.addrs.some(b => a.net === b.net && ((a.ip && a.ip === b.ip) || (a.dns && b.dns && a.dns.toLowerCase() === b.dns.toLowerCase())))));
   const i = hosts.findIndex(h => h.id === rec.id);
@@ -697,8 +697,8 @@ function openInfo() {
     ${box('Networks and endpoints', [['Networks', 'give a host one address row per network (for example LAN and VPN). With two or more networks a network filter appears in the header, like the role filter: pick a network to show only hosts that have an address on it and to build all links from those addresses.'], ['Endpoints', 'function is the button text. Standard ports are filled in per scheme (http 80, https 443, ssh 22...) and can be changed.'], ['DNS and IP', 'with both on the active network you get a main button using the DNS name and a “via IP” button for when DNS is down.'], ['SSH', 'Copy gives a ready ssh command. “Launcher .bat” downloads a Windows file that opens a terminal and connects (a web page cannot start a terminal by itself).'], ['Custom URL', 'scheme “url” opens any full URL as typed.']])}
     ${box('Network map', [['Map', 'the Map button draws the connections between hosts as lines with arrows. The arrow points to the host being used, for example a router pointing to the DNS servers it uses.'], ['Connections', 'add them inside the map: pick From, To and a label such as “DNS server”. Hosts are arranged in rows automatically and only hosts with connections are shown.']])}
     ${box('Schedules and log', [['Schedules', 'recurring tasks per host such as updates, reboots or backups. Each has a name, manual or automatic, a repeat (every N days, or on specific days of the month such as the 1st and 2nd), a start date and a time window or note.'], ['Manual', 'shows when the task is due (orange within 7 days, red when overdue). Click Mark done after you have done it and the next due date counts from today.'], ['Automatic', 'only shows your note, for tasks that run by themselves.'], ['Log', 'records reboots, shutdowns, incidents, updates and notes with a time. Marking a reboot or update schedule as done adds a log entry.']])}
-    ${box('Notes and commands', [['Notes', 'free text for anything useful, such as login hints, location, serial number, warranty or purchase date. Start a line with “Login:” for a username or where the password lives (never the password itself). Those lines are left out of the Markdown export.'], ['Commands', 'each command line on a host card has its own Copy button, plus Copy all.']])}
-    ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. “Login:” lines are left out of the Markdown file, other notes and commands are included.'], ['Reset', 'deletes everything after typing RESET.']])}
+    ${box('Notes &amp; commands', [['Entries', 'free text for anything you want to keep and copy: location, serial number, warranty, the Docker compose YAML or useful commands. Add as many entries as you like, each with its own title. On the host card every entry is its own collapsible section with a Copy button, so only the ones you open are shown.']])}
+    ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. Notes and commands are included.'], ['Reset', 'deletes everything after typing RESET.']])}
     <div class="modal-actions"><button class="btn" data-close>Close</button></div>`);
 }
 
@@ -765,9 +765,14 @@ $('#overlay').onclick = e => {
   if (e.target.closest('[data-close]')) return closeModal();
   if (e.target.id === 'overlay') return downOnBackdrop && softClose();
   const add = e.target.closest('[data-add]');
-  if (add) { const k = add.dataset.add; $('#' + k).insertAdjacentHTML('beforeend', k === 'addrs' ? addrRow({ net: defNet(), ip: '', dns: '' }) : k === 'scheds' ? schedRow({ name: '', mode: 'manual', days: '', start: '', last: '', note: '' }) : epRow({ label: '', scheme: 'https', port: '443', path: '' })); dirty = true; return; }
+  if (add) {
+    const k = add.dataset.add, rows = { addrs: () => addrRow({ net: defNet(), ip: '', dns: '' }), scheds: () => schedRow({ name: '', mode: 'manual', days: '', start: '', last: '', note: '' }), eps: () => epRow({ label: '', scheme: 'https', port: '443', path: '' }), notes: () => docRow({ title: '', text: '' }) };
+    const box = $('#' + k); box.insertAdjacentHTML('beforeend', rows[k]());
+    if (k === 'notes') box.lastElementChild.querySelector('.d-title').focus();
+    dirty = true; return;
+  }
   const rm = e.target.closest('[data-rm]');
-  if (rm) { rm.closest('.arow,.erow,.srow').remove(); dirty = true; return; }
+  if (rm) { rm.closest('.arow,.erow,.srow,.drow').remove(); dirty = true; return; }
   const ld = e.target.closest('[data-logdel]');
   if (ld) { const h = hosts.find(x => x.id === editingId); if (h) { h.log.splice(+ld.dataset.logdel, 1); saveHosts(); render(); openLog(editingId); } return; }
   const ld2 = e.target.closest('[data-ldel]');
@@ -777,7 +782,7 @@ $('#overlay').onclick = e => {
   if (e.target.closest('[data-canceledit]')) { mapDraft.editId = ''; openMap(); return; }
   const chip = e.target.closest('[data-fill],[data-row]');
   if (chip) {
-    const f = chip.dataset.row ? chip.closest('.arow,.srow').querySelector(chip.dataset.row) : $('#' + chip.dataset.fill);
+    const f = chip.dataset.row ? chip.closest('.arow,.srow,.drow').querySelector(chip.dataset.row) : $('#' + chip.dataset.fill);
     f.value = chip.hasAttribute('data-append') && f.value.trim() ? f.value.replace(/[,\s]*$/, '') + ', ' + chip.dataset.v : chip.dataset.v;
     f.focus(); dirty = true; return;
   }
