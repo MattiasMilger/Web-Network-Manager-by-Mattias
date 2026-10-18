@@ -110,6 +110,9 @@ details.rb .notes { margin-top:6px; font-size:.9em; font-family:Consolas,Monaco,
 .sub { font-size:.85em; font-weight:bold; color:var(--category-color); margin:10px 0 6px; }
 .drow { padding:8px 0; border-bottom:1px solid var(--separator-color); }
 .drow textarea { margin-top:6px; }
+.dh { background:none; border:none; color:var(--summary-color); cursor:grab; font-size:1.3em; line-height:1; padding:2px 6px; touch-action:none; user-select:none; -webkit-user-select:none; }
+.dh:hover { color:var(--accent-color); }
+.drow.dragging { opacity:.85; outline:2px dashed var(--accent-color); outline-offset:2px; background:var(--container-bg); }
 .ibox { background:var(--entry-bg); border-left:3px solid var(--accent-color); border-radius:4px; padding:10px 14px; margin-bottom:12px; font-size:.9em; line-height:1.5; }
 .ibox h4 { margin:0 0 6px; color:var(--accent-color); font-size:1em; }
 .ibox ul { padding-left:20px; margin:0; }
@@ -523,7 +526,7 @@ const schedRow = s => `<div class="srow"><div class="r"><input class="s-name" va
 const addrRow = a => `<div class="arow"><div class="r"><input class="a-net" value="${esc(a.net)}" placeholder="Network" style="flex:0 0 110px"><input class="a-ip" value="${esc(a.ip)}" placeholder="IP address" style="flex:1 1 120px"><input class="a-dns" value="${esc(a.dns)}" placeholder="DNS name" style="flex:1 1 140px"><button type="button" class="x" data-rm aria-label="Remove address">×</button></div>${nets().length ? `<div class="chips">${nets().map(n => `<button type="button" class="chip" data-row=".a-net" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}</div>`;
 const epRow = e => `<div class="erow"><div class="r"><input class="e-label" value="${esc(e.label)}" placeholder="Function (Web UI, SSH...)" style="flex:2 1 150px"><select class="e-scheme" data-prev="${e.scheme}" style="flex:0 0 84px">${SCHEMES.map(x => `<option${x === e.scheme ? ' selected' : ''}>${x}</option>`).join('')}</select><input class="e-port" value="${esc(e.port)}" placeholder="${e.scheme === 'url' ? 'Full URL' : (DEF[e.scheme] || 'Port')}" style="flex:1 1 90px"><input class="e-path${e.scheme === 'url' ? ' hide' : ''}" value="${esc(e.path)}" placeholder="${e.scheme === 'ssh' ? 'Username' : '/path'}" style="flex:1 1 90px"><button type="button" class="x" data-rm aria-label="Remove endpoint">×</button></div></div>`;
 
-const docRow = d => `<div class="drow"><div class="r"><input class="d-title" value="${esc(d.title)}" placeholder="Title (Compose YAML, Restart stack, Warranty...)" style="flex:1 1 150px"><button type="button" class="x" data-rm aria-label="Remove entry">×</button></div>
+const docRow = d => `<div class="drow"><div class="r"><button type="button" class="dh" aria-label="Drag to reorder, or use the up and down arrow keys">⠿</button><input class="d-title" value="${esc(d.title)}" placeholder="Title (Compose YAML, Restart stack, Warranty...)" style="flex:1 1 150px"><button type="button" class="x" data-rm aria-label="Remove entry">×</button></div>
   <textarea class="d-text mono" placeholder="docker compose restart&#10;Anything you want to keep and copy...">${esc(d.text)}</textarea></div>`;
 
 function openHost(id) {
@@ -697,7 +700,7 @@ function openInfo() {
     ${box('Networks and endpoints', [['Networks', 'give a host one address row per network (for example LAN and VPN). With two or more networks a network filter appears in the header, like the role filter: pick a network to show only hosts that have an address on it and to build all links from those addresses.'], ['Endpoints', 'function is the button text. Standard ports are filled in per scheme (http 80, https 443, ssh 22...) and can be changed.'], ['DNS and IP', 'with both on the active network you get a main button using the DNS name and a “via IP” button for when DNS is down.'], ['SSH', 'Copy gives a ready ssh command. “Launcher .bat” downloads a Windows file that opens a terminal and connects (a web page cannot start a terminal by itself).'], ['Custom URL', 'scheme “url” opens any full URL as typed.']])}
     ${box('Network map', [['Map', 'the Map button draws the connections between hosts as lines with arrows. The arrow points to the host being used, for example a router pointing to the DNS servers it uses.'], ['Connections', 'add them inside the map: pick From, To and a label such as “DNS server”. Hosts are arranged in rows automatically and only hosts with connections are shown.']])}
     ${box('Schedules and log', [['Schedules', 'recurring tasks per host such as updates, reboots or backups. Each has a name, manual or automatic, a repeat (every N days, or on specific days of the month such as the 1st and 2nd), a start date and a time window or note.'], ['Manual', 'shows when the task is due (orange within 7 days, red when overdue). Click Mark done after you have done it and the next due date counts from today.'], ['Automatic', 'only shows your note, for tasks that run by themselves.'], ['Log', 'records reboots, shutdowns, incidents, updates and notes with a time. Marking a reboot or update schedule as done adds a log entry.']])}
-    ${box('Notes &amp; commands', [['Entries', 'free text for anything you want to keep and copy: location, serial number, warranty, the Docker compose YAML or useful commands. Add as many entries as you like, each with its own title. On the host card every entry is its own collapsible section with a Copy button, so only the ones you open are shown.']])}
+    ${box('Notes &amp; commands', [['Entries', 'free text for anything you want to keep and copy: location, serial number, warranty, the Docker compose YAML or useful commands. Add as many entries as you like, each with its own title. On the host card every entry is its own collapsible section with a Copy button, so only the ones you open are shown. In the Edit form, drag the ⠿ handle to change the order (or focus it and use the up and down arrow keys).']])}
     ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. Notes and commands are included.'], ['Reset', 'deletes everything after typing RESET.']])}
     <div class="modal-actions"><button class="btn" data-close>Close</button></div>`);
 }
@@ -932,6 +935,44 @@ document.addEventListener('pointercancel', endDrag);
 document.addEventListener('touchmove', e => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
 document.addEventListener('selectstart', e => { if (drag && drag.active) e.preventDefault(); });
 $('#hosts').addEventListener('contextmenu', e => { if (drag && drag.type !== 'mouse') e.preventDefault(); });
+
+/* Reorder notes & commands inside the host form: drag the handle, or focus it and use the arrow keys */
+let ndrag = null;
+$('#overlay').addEventListener('pointerdown', e => {
+  const h = e.target.closest('.dh'); if (!h || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault();
+  const row = h.closest('.drow'); ndrag = { row, id: e.pointerId, start: [...row.parentElement.children].indexOf(row) };
+  row.classList.add('dragging'); document.body.classList.add('is-dragging');
+});
+document.addEventListener('pointermove', e => {
+  if (!ndrag || e.pointerId !== ndrag.id) return;
+  const { row } = ndrag, ov = $('#overlay'), r = ov.getBoundingClientRect();
+  if (e.clientY < r.top + 50) ov.scrollBy(0, -12); else if (e.clientY > r.bottom - 50) ov.scrollBy(0, 12);
+  for (const s of row.parentElement.children) {
+    if (s === row) continue;
+    const b = s.getBoundingClientRect();
+    if (e.clientY < b.top || e.clientY > b.bottom) continue;
+    const rowAfter = !!(s.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING), upper = e.clientY < b.top + b.height / 2;
+    if (rowAfter && upper) s.before(row); else if (!rowAfter && !upper) s.after(row);
+    break;
+  }
+});
+function endNoteDrag(e) {
+  if (!ndrag || e.pointerId !== ndrag.id) return;
+  const { row, start } = ndrag; ndrag = null;
+  row.classList.remove('dragging'); document.body.classList.remove('is-dragging');
+  if (row.isConnected && [...row.parentElement.children].indexOf(row) !== start) dirty = true;
+}
+document.addEventListener('pointerup', endNoteDrag);
+document.addEventListener('pointercancel', endNoteDrag);
+$('#overlay').addEventListener('keydown', e => {
+  const h = e.target.closest?.('.dh'); if (!h || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  e.preventDefault();
+  const row = h.closest('.drow'), sib = e.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+  if (!sib) return;
+  if (e.key === 'ArrowUp') sib.before(row); else sib.after(row);
+  h.focus(); dirty = true;
+});
 
 /* ===== Init ===== */
 try { if (localStorage.getItem(STORE.theme) === 'light') document.body.classList.remove('dark-mode'); } catch {}
