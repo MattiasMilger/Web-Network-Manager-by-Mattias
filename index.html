@@ -65,13 +65,8 @@ mark { background:var(--highlight-bg); color:#000; border-radius:2px; padding:0 
 .notes { margin-top:8px; font-size:.88em; color:var(--summary-color); white-space:pre-wrap; word-break:break-word; }
 .empty { text-align:center; padding:35px 10px; color:var(--summary-color); border:1px dashed var(--border-color); border-radius:6px; }
 
-/* Groups, drag, chips */
+/* Drag, chips */
 .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr)); gap:12px; }
-.group.collapsed .cards { display:none; }
-.group-head { display:flex; align-items:center; gap:8px; margin:22px 0 12px; padding-bottom:8px; border-bottom:1px solid var(--border-color); cursor:grab; user-select:none; -webkit-user-select:none; }
-.group:first-child .group-head { margin-top:0; }
-.group-head h2 { flex:1; margin:0; font-size:1.2em; color:var(--accent-color); word-break:break-word; }
-.group.dragging { opacity:.8; outline:2px dashed var(--accent-color); outline-offset:6px; border-radius:6px; }
 .host.dragging { opacity:.8; outline:2px dashed var(--accent-color); outline-offset:4px; box-shadow:0 6px 18px var(--shadow-color); transform:scale(1.02); z-index:10; }
 body.is-dragging,body.is-dragging * { cursor:grabbing !important; user-select:none; -webkit-user-select:none; }
 .emoji { margin-right:6px; }
@@ -134,6 +129,23 @@ details.fs[open] > summary::before { content:'▾ '; }
 .medge { stroke:var(--summary-color); stroke-width:1.5; fill:none; }
 .marrow { fill:var(--summary-color); }
 .mlabel { font:bold 11px Arial,sans-serif; fill:var(--fg-color); stroke:var(--container-bg); stroke-width:4px; paint-order:stroke; }
+.nrow { padding:8px 0; border-bottom:1px solid var(--separator-color); }
+.subnet { margin-top:8px; }
+.oct { display:flex; flex-wrap:wrap; align-items:center; gap:4px; font-family:Consolas,Monaco,monospace; }
+.oct b { color:var(--summary-color); }
+.n-o { width:58px; text-align:center; font-family:inherit; opacity:.6; }
+.n-o.fix { opacity:1; border-color:var(--accent-color); font-weight:bold; }
+.n-o.part { opacity:1; border-style:dashed; border-color:var(--accent-color); }
+.step { display:inline-flex; align-items:center; gap:4px; margin-left:4px; }
+.n-pn { width:52px; text-align:center; }
+.n-p { accent-color:var(--accent-color); padding:0; border:none; background:none; margin:10px 0 0; }
+.srange { display:flex; justify-content:space-between; font-size:.75em; color:var(--summary-color); }
+.bits { display:flex; gap:6px; margin:8px 0 4px; }
+.bits span { flex:1; display:flex; gap:2px; }
+.bits i { flex:1; height:10px; border-radius:2px; background:var(--accent-color); }
+.bits i.h { background:var(--button-bg); }
+.err-t { color:var(--error-color); font-weight:bold; }
+.mlegend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.82em; color:var(--summary-color); align-items:center; margin-bottom:6px; }
 .logrow.sel { background:var(--entry-bg); padding-left:8px; padding-right:8px; }
 /* Modal */
 .overlay { position:fixed; inset:0; background:var(--overlay-color); z-index:1000; display:flex; align-items:flex-start; justify-content:center; padding:20px 12px; overflow-y:auto; }
@@ -185,6 +197,7 @@ footer .footer-portfolio { margin-top:8px; font-size:.85em; opacity:.7; }
     <input class="grow" id="search" type="search" placeholder="Search name, IP, role, notes..." autocomplete="off" aria-label="Search hosts">
     <select id="roleFilter" aria-label="Filter by role"></select>
     <select id="netSel" class="hide" aria-label="Network"></select>
+    <button class="btn" id="netBtn">Networks</button>
     <button class="btn" id="mapBtn">Map</button>
     <button class="btn" id="themeBtn" aria-label="Toggle theme">◐</button>
     <button class="btn" id="infoBtn">Info</button>
@@ -207,15 +220,15 @@ footer .footer-portfolio { margin-top:8px; font-size:.85em; opacity:.7; }
 /* ===== Constants and state ===== */
 /* Saved-data format: every save writes SCHEMA. To change the format, bump SCHEMA and add
    MIGRATIONS[<previous version>] (see "Data model"). A build never overwrites newer data. */
-const STORE = { hosts: 'netmanager.hosts', layout: 'netmanager.layout', links: 'netmanager.links', schema: 'netmanager.schema', backup: 'netmanager.backup', theme: 'netmanager.theme' };
-const SCHEMA = 3;
+const STORE = { hosts: 'netmanager.hosts', layout: 'netmanager.layout', links: 'netmanager.links', networks: 'netmanager.networks', schema: 'netmanager.schema', backup: 'netmanager.backup', theme: 'netmanager.theme' };
+const SCHEMA = 4;
 const MESSAGE_DURATION_SHORT = 2000, MESSAGE_DURATION_LONG = 3500;
 const SCHEMES = ['http', 'https', 'ssh', 'rdp', 'vnc', 'smb', 'ftp', 'url'];
 const DEF = { http: 80, https: 443, ssh: 22, rdp: 3389, vnc: 5900, smb: 445, ftp: 21 };
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, URL_RE = /^(https?|ssh|rdp|vnc|smb|ftp):\/\//i;
 const $ = s => document.querySelector(s);
-let hosts = [], layout = { order: [], collapsed: [], net: '' }, links = [], activeTag = '', view = { net: '', multi: false };
-let modalSave = null, dirty = false, downOnBackdrop = false, deleteArmed = false, editingId = null, mapDraft = { from: '', label: '', editId: '' };
+let hosts = [], layout = { net: '' }, links = [], networks = [], mapNet = '', activeTag = '', view = { net: '', multi: false };
+let modalSave = null, dirty = false, downOnBackdrop = false, deleteArmed = false, editingId = null, mapDraft = { from: '', label: '', editId: '', net: '' };
 let storageLocked = false, pendingBackup = null;
 
 /* ===== Utilities ===== */
@@ -245,6 +258,18 @@ function dl(name, text, type) {
 }
 const isIp = v => /^(\d{1,3}\.){3}\d{1,3}$/.test(v) ? v.split('.').every(o => +o <= 255) : (v.includes(':') && /^[0-9a-f:.]+$/i.test(v));
 const isDns = v => /^[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]*[a-z0-9_])?)*$/i.test(v);
+/* IPv4 subnet maths (plain numbers, so no 32-bit sign issues) */
+const ip4 = v => /^(\d{1,3}\.){3}\d{1,3}$/.test(v) && v.split('.').every(o => +o <= 255) ? v.split('.').reduce((a, o) => a * 256 + +o, 0) : null;
+const ipStr = n => [24, 16, 8, 0].map(k => Math.floor(n / 2 ** k) % 256).join('.');
+function parseCidr(v) {
+  const m = String(v ?? '').trim().match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d{1,2})$/), p = m ? +m[2] : -1, a = m ? ip4(m[1]) : null;
+  if (a === null || p > 32) return null;
+  const size = 2 ** (32 - p), start = Math.floor(a / size) * size;
+  return { start, size, p, end: start + size - 1 };
+}
+const inNet = (c, ip) => { const n = ip4(ip); return !!c && n !== null && n >= c.start && n <= c.end; };
+const NETCOL = ['#3498db', '#e67e22', '#9b59b6', '#1abc9c', '#e84393', '#f1c40f'], DASH = ['', '7 4', '2 4', '9 3 2 3', '4 4', '12 4'];
+const STD_NETS = ['192.168.1.0/24', '192.168.0.0/24', '10.0.0.0/24', '172.16.0.0/24'];  /* most common home subnets; the first is the default */
 const parseMonthDays = v => [...new Set((Array.isArray(v) ? v : String(v ?? '').split(/[^\d]+/)).map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 31))].sort((a, b) => a - b);
 
 /* ===== Data model: validation, migrations, storage ===== */
@@ -276,6 +301,7 @@ const docsFromText = (v, title) => typeof v === 'string' ? (v.trim() ? [{ title,
 const cleanDocs = (v, def) => docsFromText(v, def).slice(0, 40).map(d => ({ title: str(d?.title, 60), text: String(d?.text ?? '').slice(0, 20000) }))
   .filter(d => d.title || d.text.trim()).map(d => ({ ...d, title: d.title || def }));
 
+const cleanNetworks = list => { const seen = new Set(); return (Array.isArray(list) ? list : []).map(n => { const c = parseCidr(n?.cidr); return { name: str(n?.name, 30), cidr: c ? `${ipStr(c.start)}/${c.p}` : '', note: str(n?.note, 100) }; }).filter(n => n.name && !seen.has(n.name) && seen.add(n.name)).slice(0, 50); };
 function sanitize(h) {
   return {
     id: str(h.id || uid(), 40), name: str(h.name, 100), emoji: str(h.emoji, 16), role: str(h.role, 50), os: str(h.os, 100),
@@ -288,16 +314,13 @@ function sanitize(h) {
 }
 function sanitizeLinks(a, hs = hosts) {
   const ids = new Set(hs.map(h => h.id));
-  return (Array.isArray(a) ? a : []).map(l => ({ id: str(l?.id || uid(), 40), from: str(l?.from, 40), to: str(l?.to, 40), label: str(l?.label, 40) }))
+  return (Array.isArray(a) ? a : []).map(l => ({ id: str(l?.id || uid(), 40), from: str(l?.from, 40), to: str(l?.to, 40), label: str(l?.label, 40), net: str(l?.net, 30) }))
     .filter(l => ids.has(l.from) && ids.has(l.to) && l.from !== l.to).slice(0, 300);
 }
-function sanitizeLayout(l) {
-  const a = x => Array.isArray(x) ? x.filter(v => typeof v === 'string').slice(0, 200) : [];
-  return { order: a(l?.order), collapsed: a(l?.collapsed), net: typeof l?.net === 'string' ? l.net.slice(0, 30) : '' };
-}
+function sanitizeLayout(l) { return { net: typeof l?.net === 'string' ? l.net.slice(0, 30) : '' }; }
 function normalize(d) {
   const hs = (Array.isArray(d.hosts) ? d.hosts : []).filter(h => h && typeof h === 'object').map(sanitize);
-  return { hosts: hs, layout: sanitizeLayout(d.layout), links: sanitizeLinks(d.links, hs) };
+  return { hosts: hs, layout: sanitizeLayout(d.layout), links: sanitizeLinks(d.links, hs), networks: cleanNetworks(d.networks) };
 }
 
 /* Schema 0 = data saved before versioning: ip/dns fields, "target" endpoints, upd/days/last,
@@ -326,11 +349,12 @@ function migrateHostV0(h) {
     endpoints: (Array.isArray(h.endpoints) ? h.endpoints : []).map(e => e && !e.scheme ? legacyEndpoint(e, known) : e)
   };
 }
-/* Schema 1 = notes and commands were single text fields; schema 2 = each a list of titled entries; schema 3 = one merged list (notes). */
+/* Schema 1 = notes and commands were single text fields; schema 2 = each a list of titled entries; schema 3 = one merged list (notes); schema 4 = a list of networks with optional subnets. */
 const MIGRATIONS = {
   0: d => ({ ...d, hosts: d.hosts.map(migrateHostV0) }),
   1: d => ({ ...d, hosts: d.hosts.map(h => ({ ...h, notes: docsFromText(h.notes, 'Notes'), runbook: docsFromText(h.runbook, 'Commands & routines') })) }),
-  2: d => ({ ...d, hosts: d.hosts.map(({ runbook, ...h }) => ({ ...h, notes: [...docsFromText(h.notes, 'Notes'), ...docsFromText(runbook, 'Commands & routines')] })) })
+  2: d => ({ ...d, hosts: d.hosts.map(({ runbook, ...h }) => ({ ...h, notes: [...docsFromText(h.notes, 'Notes'), ...docsFromText(runbook, 'Commands & routines')] })) }),
+  3: d => ({ ...d, networks: [...new Set(d.hosts.flatMap(h => (Array.isArray(h.addrs) ? h.addrs : []).map(a => str(a?.net, 30) || 'LAN')))].map(name => ({ name, cidr: '', note: '' })) })
 };
 function migrate(d, from) {
   for (let v = from; v < SCHEMA; v++) d = MIGRATIONS[v](d);
@@ -340,8 +364,8 @@ function migrate(d, from) {
 function loadStore() {
   const get = k => { try { return localStorage.getItem(k); } catch { return null; } };
   const parse = s => { try { return JSON.parse(s); } catch { return null; } };
-  const version = Number(get(STORE.schema)) || 0, raw = { hosts: get(STORE.hosts), layout: get(STORE.layout), links: get(STORE.links) };
-  let d = { hosts: parse(raw.hosts), layout: parse(raw.layout), links: parse(raw.links) };
+  const version = Number(get(STORE.schema)) || 0, raw = { hosts: get(STORE.hosts), layout: get(STORE.layout), links: get(STORE.links), networks: get(STORE.networks) };
+  let d = { hosts: parse(raw.hosts), layout: parse(raw.layout), links: parse(raw.links), networks: parse(raw.networks) };
   d.hosts = Array.isArray(d.hosts) ? d.hosts.filter(h => h && typeof h === 'object') : [];
   if (version > SCHEMA) storageLocked = true;
   else if (version < SCHEMA) {
@@ -352,7 +376,7 @@ function loadStore() {
 }
 function boot() {
   const d = normalize(loadStore());
-  hosts = d.hosts; layout = d.layout; links = d.links;
+  hosts = d.hosts; layout = d.layout; links = d.links; networks = d.networks;
   if (storageLocked) showMessage('This data was saved by a newer version of the app.\nIt is shown read-only. Update the page to edit it.', 'warning');
 }
 function saveHosts() {
@@ -362,6 +386,7 @@ function saveHosts() {
     localStorage.setItem(STORE.hosts, JSON.stringify(hosts));
     localStorage.setItem(STORE.layout, JSON.stringify(layout));
     localStorage.setItem(STORE.links, JSON.stringify(links));
+    localStorage.setItem(STORE.networks, JSON.stringify(networks));
     localStorage.setItem(STORE.schema, String(SCHEMA));
     return true;
   } catch {
@@ -371,7 +396,16 @@ function saveHosts() {
 }
 
 /* ===== Domain logic ===== */
-const nets = () => [...new Set(hosts.flatMap(h => h.addrs.map(a => a.net)))];
+const nets = () => [...new Set([...networks.map(n => n.name), ...hosts.flatMap(h => h.addrs.map(a => a.net))])];
+const netDef = name => networks.find(n => n.name === name);
+/* The network a connection runs over: set explicitly, else the one network both hosts share, else '' (unknown or several) */
+const linkNet = (l, byId) => { if (l.net) return l.net; const a = byId.get(l.from), b = byId.get(l.to), c = [...new Set(a.addrs.map(x => x.net).filter(n => b.addrs.some(y => y.net === n)))]; return c.length === 1 ? c[0] : ''; };
+function nextFree(name) {
+  const c = parseCidr(netDef(name)?.cidr); if (!c || c.size < 4) return '';
+  const taken = new Set(hosts.flatMap(h => h.addrs.filter(a => a.net === name).map(a => ip4(a.ip))));
+  for (let n = c.start + 1; n < c.end; n++) if (!taken.has(n)) return ipStr(n);
+  return '';
+}
 const curNet = () => nets().includes(layout.net) ? layout.net : '';
 const defNet = () => curNet() || nets()[0] || 'LAN';
 const pickAddr = (h, net = curNet()) => h.addrs.find(a => a.net === net) || h.addrs[0];
@@ -410,21 +444,18 @@ function schedInfo(s) {
 const RANK = { '': 0, ok: 1, warn: 2, err: 3 };
 function toMarkdown() {
   let o = `# Network inventory\n\nExported ${today()}, ${hosts.length} host${hosts.length === 1 ? '' : 's'}.\n`;
-  const present = [...new Set(hosts.map(h => h.group))];
-  [...layout.order.filter(g => present.includes(g)), ...present.filter(g => !layout.order.includes(g))].forEach(g => {
-    o += `\n## ${g || 'Ungrouped'}\n`;
-    hosts.filter(h => h.group === g).forEach(h => {
+  hosts.forEach(h => {
       const f = (k, v) => v ? `- **${k}:** ${v}\n` : '', A = h.addrs[0];
-      o += `\n### ${h.emoji ? h.emoji + ' ' : ''}${h.name}\n\n` + f('Role', h.role) + f('OS', [h.os, h.lang].filter(Boolean).join(', ')) + f('Hardware', h.hardware) + f('Tags', h.tags.join(', '));
+      o += `\n## ${h.emoji ? h.emoji + ' ' : ''}${h.name}\n\n` + f('Role', h.role) + f('OS', [h.os, h.lang].filter(Boolean).join(', ')) + f('Hardware', h.hardware) + f('Tags', h.tags.join(', '));
       h.addrs.forEach(a => { o += f(a.net, [a.ip, a.dns].filter(Boolean).join(' / ')); });
       h.endpoints.forEach(e => { o += f(e.label || e.scheme, epUrl(e, A.dns || A.ip)); });
       h.schedules.forEach(sc => { o += f(sc.name, (sc.mode === 'auto' ? 'automatic' : 'manual') + (sc.repeat === 'month' ? `, on the ${sc.monthDays.map(ord).join(', ')} of each month` : sc.days ? `, every ${sc.days} days` : '') + (sc.start ? `, from ${sc.start}` : '') + (sc.last ? `, last ${sc.last}` : '') + (sc.note ? `, ${sc.note}` : '')); });
       h.notes.forEach(n => { const nt = n.text.trim(); if (nt) o += `\n**${n.title}**\n\n` + '```\n' + nt + '\n```\n'; });
       if (h.log.length) o += '\n**Log**\n\n' + h.log.slice().sort((a, b) => a.t < b.t ? 1 : -1).map(l => `- ${l.t.replace('T', ' ')} ${l.type}${l.text ? ': ' + l.text : ''}`).join('\n') + '\n';
-    });
   });
+  if (networks.length) o += '\n## Networks\n\n' + networks.map(n => `- **${n.name}:** ${n.cidr || 'no subnet'}${n.note ? ' (' + n.note + ')' : ''}`).join('\n') + '\n';
   const nm = new Map(hosts.map(h => [h.id, h.name]));
-  if (links.length) o += '\n## Connections\n\n' + links.map(l => `- ${nm.get(l.from)} → ${nm.get(l.to)}${l.label ? ': ' + l.label : ''}`).join('\n') + '\n';
+  if (links.length) o += '\n## Connections\n\n' + links.map(l => `- ${nm.get(l.from)} → ${nm.get(l.to)}${l.label ? ': ' + l.label : ''}${l.net ? ' [' + l.net + ']' : ''}`).join('\n') + '\n';
   return o;
 }
 
@@ -479,21 +510,12 @@ function render() {
   $('#tagBar').innerHTML = tags.map(t => `<button class="chip${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('');
   const role = rf.value, q = $('#search').value.trim(), ql = q.toLowerCase(), net = curNet(), filt = !!(q || role || activeTag || net);
   const list = hosts.filter(h => (!role || h.role === role) && (!activeTag || h.tags.includes(activeTag)) && (!net || h.addrs.some(a => a.net === net)) &&
-    (!ql || [h.name, h.role, h.os, h.lang, h.hardware, h.group, ...h.notes.map(n => n.title + ' ' + n.text), h.tags.join(' '), ...h.addrs.map(a => `${a.net} ${a.ip} ${a.dns}`), ...h.endpoints.map(e => e.label + ' ' + e.port)].join(' ').toLowerCase().includes(ql)));
+    (!ql || [h.name, h.role, h.os, h.lang, h.hardware, ...h.notes.map(n => n.title + ' ' + n.text), h.tags.join(' '), ...h.addrs.map(a => `${a.net} ${a.ip} ${a.dns}`), ...h.endpoints.map(e => e.label + ' ' + e.port)].join(' ').toLowerCase().includes(ql)));
   $('#count').textContent = hosts.length ? `Showing ${list.length} of ${hosts.length} host${hosts.length === 1 ? '' : 's'}` : '';
   $('#resetOrder').parentElement.classList.toggle('hide', !hosts.length);
   if (!hosts.length) { $('#hosts').innerHTML = '<div class="empty">No hosts yet.<br>Click “+ Add Host” to document your first device.</div>'; return; }
   if (!list.length) { $('#hosts').innerHTML = '<div class="empty">No hosts match your search.</div>'; return; }
-  const present = [...new Set(hosts.map(h => h.group))];
-  layout.order = [...layout.order.filter(g => present.includes(g)), ...present.filter(g => !layout.order.includes(g))];
-  const named = layout.order.length > 1 || layout.order[0] !== '';
-  $('#hosts').innerHTML = layout.order.map(g => {
-    const items = list.filter(h => h.group === g);
-    if (!items.length) return '';
-    const fold = !filt && layout.collapsed.includes(g);
-    const head = named ? `<div class="group-head"><h2>${hl(g || 'Ungrouped', q)}</h2><span class="badge">${items.length}</span>${g ? '<button class="btn sm" data-gact="rename">Rename</button>' : ''}<button class="btn sm" data-gact="fold">${fold ? 'Expand' : 'Collapse'}</button></div>` : '';
-    return `<section class="group${fold ? ' collapsed' : ''}" data-group="${esc(g)}">${head}<div class="cards">${items.map(h => cardHtml(h, q)).join('')}</div></section>`;
-  }).join('');
+  $('#hosts').innerHTML = `<div class="cards">${list.map(h => cardHtml(h, q)).join('')}</div>`;
 }
 
 /* ===== Dialogs and forms ===== */
@@ -523,7 +545,7 @@ const schedRow = s => `<div class="srow"><div class="r"><input class="s-name" va
   <div><label>First run / start from<input class="s-start" type="date" value="${esc(s.start)}"></label></div>
   <div><label>Time window / note<input class="s-note" value="${esc(s.note)}" placeholder="Sundays 03:00"></label></div></div>
   ${s.last ? `<div class="r"><label style="margin:0">Last done<input class="s-last" type="date" value="${esc(s.last)}"></label></div>` : ''}</div>`;
-const addrRow = a => `<div class="arow"><div class="r"><input class="a-net" value="${esc(a.net)}" placeholder="Network" style="flex:0 0 110px"><input class="a-ip" value="${esc(a.ip)}" placeholder="IP address" style="flex:1 1 120px"><input class="a-dns" value="${esc(a.dns)}" placeholder="DNS name" style="flex:1 1 140px"><button type="button" class="x" data-rm aria-label="Remove address">×</button></div>${nets().length ? `<div class="chips">${nets().map(n => `<button type="button" class="chip" data-row=".a-net" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}</div>`;
+const addrRow = a => `<div class="arow"><div class="r"><input class="a-net" value="${esc(a.net)}" placeholder="Network" style="flex:0 0 110px"><input class="a-ip" value="${esc(a.ip)}" placeholder="IP address" style="flex:1 1 120px"><input class="a-dns" value="${esc(a.dns)}" placeholder="DNS name" style="flex:1 1 140px"><button type="button" class="x" data-rm aria-label="Remove address">×</button></div>${nets().length ? `<div class="chips">${nets().map(n => `<button type="button" class="chip" data-row=".a-net" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}<div class="hint a-hint"></div></div>`;
 const epRow = e => `<div class="erow"><div class="r"><input class="e-label" value="${esc(e.label)}" placeholder="Function (Web UI, SSH...)" style="flex:2 1 150px"><select class="e-scheme" data-prev="${e.scheme}" style="flex:0 0 84px">${SCHEMES.map(x => `<option${x === e.scheme ? ' selected' : ''}>${x}</option>`).join('')}</select><input class="e-port" value="${esc(e.port)}" placeholder="${e.scheme === 'url' ? 'Full URL' : (DEF[e.scheme] || 'Port')}" style="flex:1 1 90px"><input class="e-path${e.scheme === 'url' ? ' hide' : ''}" value="${esc(e.path)}" placeholder="${e.scheme === 'ssh' ? 'Username' : '/path'}" style="flex:1 1 90px"><button type="button" class="x" data-rm aria-label="Remove endpoint">×</button></div></div>`;
 
 const docRow = d => `<div class="drow"><div class="r"><button type="button" class="dh" aria-label="Drag to reorder, or use the up and down arrow keys">⠿</button><input class="d-title" value="${esc(d.title)}" placeholder="Title (Compose YAML, Restart stack, Warranty...)" style="flex:1 1 150px"><button type="button" class="x" data-rm aria-label="Remove entry">×</button></div>
@@ -539,7 +561,7 @@ function openHost(id) {
     <div style="flex:0 0 110px"><label for="f-emoji">Symbol</label><input id="f-emoji" value="${esc(h.emoji)}" placeholder="🖥️"></div></div>
     ${fs('Choose symbol', false, chips('emoji', EMOJI, 'e'))}
     ${fs('Classification', true, `<div class="row"><div><label for="f-role">Role</label><input id="f-role" value="${esc(h.role)}" placeholder="Hypervisor">${chips('role', used('role'), '', 'Used before:')}</div>
-      <div><label for="f-group">Group</label><input id="f-group" value="${esc(h.group)}" placeholder="Leave empty for none">${chips('group', used('group'), '', 'Used before:')}</div></div>
+      </div>
       <div class="row"><div><label for="f-os">OS / platform</label><input id="f-os" value="${esc(h.os)}" placeholder="Debian 12">${chips('os', used('os'), '', 'Used before:')}</div>
       <div><label for="f-lang">OS language</label><input id="f-lang" value="${esc(h.lang)}" placeholder="English">${chips('lang', used('lang'), '', 'Used before:')}</div></div>
       <div class="row"><div><label for="f-hardware">Hardware</label><input id="f-hardware" value="${esc(h.hardware)}" placeholder="Raspberry Pi 4 (4 GB), Dell OptiPlex 3040...">${chips('hardware', used('hardware'), '', 'Used before:')}</div>
@@ -553,6 +575,7 @@ function openHost(id) {
     <div class="modal-actions"><button class="btn accent" data-save>Save host</button><button class="btn" data-close>Cancel</button>
     ${id ? '<button class="btn danger spacer" data-delete>Delete host</button>' : ''}</div>
     <div class="hint">Ctrl+Enter saves, Escape closes.</div>`, () => saveHost(id));
+  document.querySelectorAll('#modal .arow').forEach(addrHint);
 }
 
 function saveHost(id) {
@@ -582,7 +605,7 @@ function saveHost(id) {
   const badSc = schedules.find(x => x.repeat === 'month' && !parseMonthDays(x.monthDays).length);
   if (badSc) return showMessage(`“${badSc.name || 'Schedule'}”: enter at least one day of the month (1-31).`);
   const docs = () => all('.drow').map(r => ({ title: q(r, '.d-title'), text: r.querySelector('.d-text').value.trimEnd() }));
-  const rec = sanitize({ id: id || uid(), name, emoji: v('emoji'), role: v('role'), os: v('os'), lang: v('lang'), hardware: v('hardware'), group: v('group'),
+  const rec = sanitize({ id: id || uid(), name, emoji: v('emoji'), role: v('role'), os: v('os'), lang: v('lang'), hardware: v('hardware'), group: old ? old.group : '',
     tags: v('tags').split(','), addrs, endpoints, notes: docs(),
     schedules, log: old ? old.log : [] });
   const dupe = hosts.find(o => o.id !== rec.id && o.addrs.some(a => rec.addrs.some(b => a.net === b.net && ((a.ip && a.ip === b.ip) || (a.dns && b.dns && a.dns.toLowerCase() === b.dns.toLowerCase())))));
@@ -590,7 +613,9 @@ function saveHost(id) {
   if (i >= 0) hosts[i] = rec; else hosts.push(rec);
   if (!saveHosts()) return;
   closeModal(); render();
+  const out = rec.addrs.find(a => { const d = netDef(a.net); return a.ip && d && d.cidr && ip4(a.ip) !== null && !inNet(parseCidr(d.cidr), a.ip); });
   if (dupe) showMessage(`Saved, but an address is also used by “${dupe.name}” on the same network.`, 'warning');
+  else if (out) showMessage(`Saved, but ${out.ip} is outside ${out.net} (${netDef(out.net).cidr}).`, 'warning');
   else showMessage(id ? `Updated ${name}` : `Added ${name}`, 'success');
 }
 
@@ -610,8 +635,9 @@ function openLog(id) {
   });
 }
 
-function mapSvg(ids, ls, byId) {
+function mapSvg(ids, ls, byId, netOf, sel) {
   const NW = 176, NH = 46, GX = 30, GY = 74;
+  const es = l => { const i = nets().indexOf(netOf(l)), k = i < 0 ? -1 : i % NETCOL.length, d = k < 0 ? '' : DASH[k]; return `style="${k < 0 ? '' : 'stroke:' + NETCOL[k] + ';'}${d ? 'stroke-dasharray:' + d : ''}" marker-end="url(#arr${k < 0 ? '' : k})"`; };
   const out = new Map(ids.map(i => [i, []])), inc = new Map(ids.map(i => [i, 0]));
   ls.forEach(l => { out.get(l.from).push(l.to); inc.set(l.to, inc.get(l.to) + 1); });
   const lvl = new Map(), queue = [];
@@ -637,57 +663,124 @@ function mapSvg(ids, ls, byId) {
       const c = cross.get(a.y) || [0, 0], up = c[1] > c[0], lv = rowN.get(a.y) || 0, bulge = 30 + 22 * lv, sy = a.y + (up ? -NH / 2 : NH / 2), mx = (a.x + b.x) / 2, cy = sy + (up ? -2 : 2) * bulge, ay = sy + (up ? -bulge : bulge);
       rowN.set(a.y, lv + 1);
       if (up) minY = Math.min(minY, ay - 22); else maxY = Math.max(maxY, ay + 24);
-      return `<path class="medge" d="M${a.x} ${sy} Q${mx} ${cy} ${b.x} ${sy}" marker-end="url(#arr)"/>` + (l.label ? `<text class="mlabel" x="${mx}" y="${up ? ay - 5 : ay + 14}" text-anchor="middle">${esc(l.label)}</text>` : '');
+      return `<path class="medge" d="M${a.x} ${sy} Q${mx} ${cy} ${b.x} ${sy}" ${es(l)}/>` + (l.label ? `<text class="mlabel" x="${mx}" y="${up ? ay - 5 : ay + 14}" text-anchor="middle">${esc(l.label)}</text>` : '');
     }
     const p1 = clip(a, b), p2 = clip(b, a), [u, v] = [l.from, l.to].sort(), dx = pos.get(v).x - pos.get(u).x, dy = pos.get(v).y - pos.get(u).y, len = Math.hypot(dx, dy) || 1;
     const off = (i - (grp.get(k) - 1) / 2) * 16, ox = -dy / len * off, oy = dx / len * off;
     const x1 = p1.x + ox, y1 = p1.y + oy, x2 = p2.x + ox, y2 = p2.y + oy;
-    return `<line class="medge" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" marker-end="url(#arr)"/>` + (l.label ? `<text class="mlabel" x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 4}" text-anchor="middle">${esc(l.label)}</text>` : '');
+    return `<line class="medge" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" ${es(l)}/>` + (l.label ? `<text class="mlabel" x="${(x1 + x2) / 2}" y="${(y1 + y2) / 2 - 4}" text-anchor="middle">${esc(l.label)}</text>` : '');
   }).join('');
+  const bar = (h, x, y) => { const ns = sel || nets().length < 2 ? [] : [...new Set(h.addrs.map(a => a.net))].filter(n => nets().includes(n)), w = (NW - 12) / (ns.length || 1); return ns.map((n, k) => `<rect x="${x + 6 + k * w}" y="${y + NH - 4}" width="${w}" height="3" fill="${NETCOL[nets().indexOf(n) % NETCOL.length]}"/>`).join(''); };
   const cut = (t, n) => t.length > n ? t.slice(0, n - 1) + '…' : t;
   const nodes = ids.map(id => {
-    const h = byId.get(id), p = pos.get(id), A = pickAddr(h), x = p.x - NW / 2, y = p.y - NH / 2;
-    return `<rect class="mnode" x="${x}" y="${y}" width="${NW}" height="${NH}" rx="6"/><rect class="macc" x="${x}" y="${y}" width="4" height="${NH}" rx="2"/><text class="mname" x="${x + 14}" y="${y + 20}">${esc(cut((h.emoji ? h.emoji + ' ' : '') + h.name, 22))}</text><text class="maddr" x="${x + 14}" y="${y + 36}">${esc(cut(A ? (A.ip || A.dns) : '', 26))}</text>`;
+    const h = byId.get(id), p = pos.get(id), A = pickAddr(h, sel), x = p.x - NW / 2, y = p.y - NH / 2;
+    return `<rect class="mnode" x="${x}" y="${y}" width="${NW}" height="${NH}" rx="6"/><rect class="macc" x="${x}" y="${y}" width="4" height="${NH}" rx="2"/><text class="mname" x="${x + 14}" y="${y + 20}">${esc(cut((h.emoji ? h.emoji + ' ' : '') + h.name, 22))}</text><text class="maddr" x="${x + 14}" y="${y + 36}">${esc(cut(A ? (A.ip || A.dns) : '', 26))}</text>${bar(h, x, y)}`;
   }).join('');
-  return `<svg class="mapsvg" style="max-width:${W + 24}px" viewBox="-12 ${minY} ${W + 24} ${maxY - minY}" role="img" aria-label="Network map"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="marrow"/></marker></defs>${edges}${nodes}</svg>`;
+  return `<svg class="mapsvg" style="max-width:${W + 24}px" viewBox="-12 ${minY} ${W + 24} ${maxY - minY}" role="img" aria-label="Network map"><defs>${NETCOL.map((c, i) => `<marker id="arr${i}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`).join('')}<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="marrow"/></marker></defs>${edges}${nodes}</svg>`;
 }
 function openMap() {
   if (hosts.length < 2) return showMessage('Add at least two hosts to build a map.', 'info');
-  const byId = new Map(hosts.map(h => [h.id, h])), ls = links.filter(l => byId.has(l.from) && byId.has(l.to));
+  if (mapNet && !nets().includes(mapNet)) mapNet = '';
+  const byId = new Map(hosts.map(h => [h.id, h])), all = links.filter(l => byId.has(l.from) && byId.has(l.to)), netOf = l => linkNet(l, byId);
+  const ls = all.filter(l => !mapNet || !netOf(l) || netOf(l) === mapNet), ns = nets();
   const ids = [...new Set(ls.flatMap(l => [l.from, l.to]))], used = [...new Set(links.map(l => l.label).filter(Boolean))];
-  const ed = ls.find(l => l.id === mapDraft.editId), from = ed ? ed.from : mapDraft.from, to = ed ? ed.to : '', label = ed ? ed.label : mapDraft.label;
+  const ed = all.find(l => l.id === mapDraft.editId), from = ed ? ed.from : mapDraft.from, to = ed ? ed.to : '', label = ed ? ed.label : mapDraft.label, lnet = ed ? ed.net : (mapDraft.net || mapNet);
   const opt = sel => hosts.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })).map(h => `<option value="${esc(h.id)}"${h.id === sel ? ' selected' : ''}>${esc((h.emoji ? h.emoji + ' ' : '') + h.name)}</option>`).join('');
+  const nopt = (sel, any, cd = true) => `<option value="">${any}</option>` + ns.map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(n)}${cd && netDef(n)?.cidr ? ' (' + esc(netDef(n).cidr) + ')' : ''}</option>`).join('');
+  const legend = ns.map((n, i) => `<span class="r" style="gap:6px"><svg width="30" height="8" aria-hidden="true"><line x1="0" y1="4" x2="30" y2="4" stroke="${NETCOL[i % NETCOL.length]}" stroke-width="2.5"${DASH[i % NETCOL.length] ? ` stroke-dasharray="${DASH[i % NETCOL.length]}"` : ''}/></svg>${esc(n)}</span>`).join('');
   openModal(`${modalHead('Network map')}
-    ${ids.length ? mapSvg(ids, ls, byId) : '<div class="empty">No connections yet. Add one below.</div>'}
-    ${ls.length ? `<h3>Connections</h3>${ls.map(l => `<div class="logrow${ed && ed.id === l.id ? ' sel' : ''}"><span>${esc(byId.get(l.from).name)} → ${esc(byId.get(l.to).name)}${l.label ? ': ' + esc(l.label) : ''}</span><span class="r"><button class="btn sm" data-ledit="${esc(l.id)}">Edit</button><button class="x" data-ldel="${esc(l.id)}" aria-label="Delete connection">×</button></span></div>`).join('')}` : ''}
+    ${ns.length > 1 ? `<div class="r" style="margin-bottom:8px"><label for="m-net" style="margin:0">Show</label><select id="m-net">${nopt(mapNet, 'All networks', false)}</select></div><div class="mlegend">${legend}<span>Grey: network unknown</span></div>` : ''}
+    ${ids.length ? mapSvg(ids, ls, byId, netOf, mapNet) : '<div class="empty">No connections to show. Add one below.</div>'}
+    ${ls.length ? `<h3>Connections</h3>${ls.map(l => `<div class="logrow${ed && ed.id === l.id ? ' sel' : ''}"><span>${esc(byId.get(l.from).name)} → ${esc(byId.get(l.to).name)}${l.label ? ': ' + esc(l.label) : ''}${netOf(l) ? ` <span class="badge">${esc(netOf(l))}</span>` : ''}</span><span class="r"><button class="btn sm" data-ledit="${esc(l.id)}">Edit</button><button class="x" data-ldel="${esc(l.id)}" aria-label="Delete connection">×</button></span></div>`).join('')}` : ''}
     <h3>${ed ? 'Edit connection' : 'Add connection'}</h3>
     <div class="row"><div><label for="m-from">From</label><select id="m-from">${opt(from)}</select></div><div><label for="m-to">To</label><select id="m-to">${opt(to)}</select></div></div>
     <div class="field"><label for="m-label">Label</label><input id="m-label" value="${esc(label)}" placeholder="DNS server, uplink, VPN...">
     ${used.length ? `<div class="chips">${used.map(v => `<button type="button" class="chip" data-fill="m-label" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''}</div>
+    ${ns.length > 1 ? `<div class="field"><label for="m-lnet">Network</label><select id="m-lnet">${nopt(lnet, 'Auto (network both hosts share)')}</select><div class="hint">The network this connection runs over. It sets the line colour and which network view shows it.</div></div>` : ''}
     <div class="modal-actions"><button class="btn accent" data-save>${ed ? 'Save changes' : 'Add connection'}</button>${ed ? '<button class="btn" data-canceledit>Cancel edit</button>' : ''}<button class="btn" data-close>Close</button></div>`, addLink);
   $('#modal').classList.add('wide');
   if (ed) $('#m-label').focus();
 }
 function addLink() {
-  const from = $('#m-from').value, to = $('#m-to').value, label = $('#m-label').value.trim().slice(0, 40);
+  const from = $('#m-from').value, to = $('#m-to').value, label = $('#m-label').value.trim().slice(0, 40), net = $('#m-lnet') ? $('#m-lnet').value : '';
   if (from === to) return showMessage('Pick two different hosts.');
   const ed = links.find(l => l.id === mapDraft.editId);
-  if (links.some(l => l !== ed && l.from === from && l.to === to && l.label.toLowerCase() === label.toLowerCase())) return showMessage('That connection already exists.', 'warning');
-  if (ed) Object.assign(ed, { from, to, label }); else links.push({ id: uid(), from, to, label });
-  mapDraft = { from, label, editId: '' };
-  if (saveHosts()) { openMap(); showMessage(ed ? 'Connection updated' : 'Connection added', 'success'); }
+  if (links.some(l => l !== ed && l.from === from && l.to === to && l.net === net && l.label.toLowerCase() === label.toLowerCase())) return showMessage('That connection already exists.', 'warning');
+  if (ed) Object.assign(ed, { from, to, label, net }); else links.push({ id: uid(), from, to, label, net });
+  mapDraft = { from, label, editId: '', net };
+  const miss = net && [from, to].map(i => hosts.find(h => h.id === i)).find(h => !h.addrs.some(a => a.net === net));
+  if (saveHosts()) { openMap(); miss ? showMessage(`Saved, but ${miss.name} has no address on ${net}.`, 'warning') : showMessage(ed ? 'Connection updated' : 'Connection added', 'success'); }
 }
 
-function renameGroup(name) {
-  openModal(`${modalHead('Rename group')}<div class="field"><label for="g-name">Group name</label><input id="g-name" value="${esc(name)}"></div>
-    <div class="modal-actions"><button class="btn accent" data-save>Save</button><button class="btn" data-close>Cancel</button></div>`, () => {
-    const n = $('#g-name').value.trim().slice(0, 50);
-    if (n === name) return closeModal();
-    hosts.forEach(h => { if (h.group === name) h.group = n; });
-    const map = g => g === name ? n : g, uniq = a => [...new Set(a.map(map))];
-    layout.order = uniq(layout.order); layout.collapsed = uniq(layout.collapsed);
-    if (saveHosts()) { closeModal(); render(); showMessage('Group renamed', 'success'); }
+/* ===== Networks and subnets ===== */
+function netInfo(name, cidr) {
+  if (!cidr) return 'No subnet yet.';
+  const c = parseCidr(cidr); if (!c) return '<span class="err-t">Fill in all four numbers (0–255).</span>';
+  const big = c.size > 2, cnt = hosts.filter(h => h.addrs.some(a => a.net === name && a.ip)).length;
+  return `${ipStr(big ? c.start + 1 : c.start)} – ${ipStr(big ? c.end - 1 : c.end)} · ${big ? c.size - 2 : c.size} usable · ${cnt} host${cnt === 1 ? '' : 's'}`;
+}
+const netRow = (n, pick) => {
+  const c = parseCidr(n.cidr), o = c ? ipStr(c.start).split('.') : ['', '', '', ''], p = c ? c.p : 24;
+  return `<div class="nrow" data-old="${esc(n.name)}"><div class="r"><input class="n-name" value="${esc(n.name)}" placeholder="LAN" style="flex:0 0 140px" aria-label="Network name"><input class="n-note" value="${esc(n.note)}" placeholder="Note (optional)" style="flex:1 1 160px" aria-label="Note"><button type="button" class="x" data-rm aria-label="Remove network">×</button></div>
+  <div class="subnet"><div class="oct">${o.map((v, i) => `${i ? '<b>.</b>' : ''}<input class="n-o" inputmode="numeric" maxlength="3" value="${v}" placeholder="${['192', '168', '1', '0'][i]}" aria-label="Address number ${i + 1}">`).join('')}<b>/</b><span class="step"><button type="button" class="btn sm" data-pstep="-1" aria-label="Smaller prefix">−</button><input class="n-pn" inputmode="numeric" maxlength="2" value="${p}" aria-label="Prefix length"><button type="button" class="btn sm" data-pstep="1" aria-label="Larger prefix">+</button></span></div>
+  <input class="n-p" type="range" min="8" max="30" value="${Math.min(30, Math.max(8, p))}" aria-label="Network size">
+  <div class="srange"><span>Bigger network</span><span>Smaller network</span></div>
+  <div class="bits" aria-hidden="true"></div><div class="hint n-bits"></div><div class="hint n-info"></div>
+  ${pick || !n.cidr ? `<div class="chips"><span class="hint">Common:</span>${STD_NETS.map(v => `<button type="button" class="chip" data-preset="${v}">${v}</button>`).join('')}</div>` : ''}</div></div>`;
+};
+function netState(r) {
+  const o = [...r.querySelectorAll('.n-o')].map(i => i.value.trim()), p = +r.querySelector('.n-pn').value.trim(), filled = o.filter(Boolean).length;
+  return { filled, cidr: filled === 4 && o.every(v => /^\d{1,3}$/.test(v)) && p >= 1 && p <= 32 ? `${o.join('.')}/${p}` : '' };
+}
+function netRefresh(r, from) {
+  const { filled, cidr } = netState(r), pp = Math.min(32, Math.max(1, +r.querySelector('.n-pn').value || 24));
+  if (from !== 'p') r.querySelector('.n-p').value = Math.min(30, Math.max(8, pp));
+  r.querySelectorAll('.n-o').forEach((i, k) => { i.classList.toggle('fix', (k + 1) * 8 <= pp); i.classList.toggle('part', k * 8 < pp && pp < (k + 1) * 8); });
+  r.querySelector('.bits').innerHTML = [0, 1, 2, 3].map(k => `<span>${Array.from({ length: 8 }, (_, j) => `<i${k * 8 + j < pp ? '' : ' class="h"'}></i>`).join('')}</span>`).join('');
+  r.querySelector('.n-bits').textContent = `${pp} network bits · ${32 - pp} device bits`;
+  r.querySelector('.n-info').innerHTML = netInfo(r.querySelector('.n-name').value.trim(), filled ? cidr || 'x' : '');
+}
+function netNorm(r) {
+  const pn = r.querySelector('.n-pn'); pn.value = Math.min(32, Math.max(1, +pn.value || 24));
+  const os = r.querySelectorAll('.n-o'); os.forEach(i => { if (i.value) i.value = Math.min(255, +i.value); });
+  const c = parseCidr(netState(r).cidr); if (c) ipStr(c.start).split('.').forEach((v, k) => { os[k].value = v; });
+  netRefresh(r);
+}
+function netSet(r, cidr) { const c = parseCidr(cidr); if (!c) return; ipStr(c.start).split('.').forEach((v, k) => { r.querySelectorAll('.n-o')[k].value = v; }); r.querySelector('.n-pn').value = c.p; netNorm(r); }
+const suggestNet = () => { const taken = [...document.querySelectorAll('#modal .nrow')].map(r => parseCidr(netState(r).cidr)).filter(Boolean); return STD_NETS.find(v => { const c = parseCidr(v); return !taken.some(t => c.start <= t.end && t.start <= c.end); }) || ''; };
+function openNetworks() {
+  openModal(`${modalHead('Networks &amp; subnets')}
+    <div id="nets">${(nets().length ? nets().map(n => netRow(netDef(n) || { name: n, cidr: '', note: '' })) : [netRow({ name: 'LAN', cidr: STD_NETS[0], note: '' }, true)]).join('')}</div><button type="button" class="btn sm" data-add="nets">+ Add network</button>
+    <div class="modal-actions"><button class="btn accent" data-save>Save networks</button><button class="btn" data-close>Cancel</button></div>`, saveNetworks);
+  document.querySelectorAll('#modal .nrow').forEach(r => netRefresh(r));
+}
+function saveNetworks() {
+  const rows = [...document.querySelectorAll('#modal .nrow')].map(r => { const st = netState(r); return { old: r.dataset.old, name: r.querySelector('.n-name').value.trim().slice(0, 30), cidr: st.cidr, partial: st.filled > 0 && !st.cidr, note: r.querySelector('.n-note').value.trim() }; }).filter(x => x.name || x.cidr || x.partial || x.note);
+  for (const x of rows) {
+    if (!x.name) return showMessage('Every network needs a name.');
+    if (x.partial || (x.cidr && !parseCidr(x.cidr))) return showMessage(`“${x.name}”: fill in all four address numbers (0-255) or clear them.`);
+  }
+  rows.filter(x => x.old && x.old !== x.name).forEach(x => {
+    hosts.forEach(h => h.addrs.forEach(a => { if (a.net === x.old) a.net = x.name; }));
+    links.forEach(l => { if (l.net === x.old) l.net = x.name; });
+    if (layout.net === x.old) layout.net = x.name;
+    if (mapNet === x.old) mapNet = x.name;
   });
+  const merged = []; rows.forEach(x => { const m = merged.find(y => y.name === x.name); if (m) { m.cidr = m.cidr || x.cidr; m.note = m.note || x.note; } else merged.push({ ...x }); });
+  networks = cleanNetworks(merged);
+  const cs = networks.filter(n => n.cidr).map(n => ({ n: n.name, c: parseCidr(n.cidr) })), clash = [];
+  cs.forEach((a, i) => cs.slice(i + 1).forEach(b => { if (a.c.start <= b.c.end && b.c.start <= a.c.end) clash.push(`${a.n} and ${b.n}`); }));
+  if (!saveHosts()) return;
+  closeModal(); render();
+  if (clash.length) showMessage(`Saved, but these subnets overlap: ${clash.join(', ')}.`, 'warning'); else showMessage('Networks saved', 'success');
+}
+function addrHint(r) {
+  const ip = r.querySelector('.a-ip').value.trim(), net = r.querySelector('.a-net').value.trim(), d = netDef(net), c = d && parseCidr(d.cidr), box = r.querySelector('.a-hint');
+  const chip = (row, v) => `<button type="button" class="chip" data-row="${row}" data-v="${esc(v)}">${esc(v)}</button>`;
+  if (!ip) { const f = c && nextFree(net); box.innerHTML = f ? `${esc(net)} is ${esc(d.cidr)}. Next free: ${chip('.a-ip', f)}` : ''; return; }
+  if (ip4(ip) === null) { box.innerHTML = ''; return; }
+  const fits = c && inNet(c, ip), hit = networks.filter(n => n.name !== net && inNet(parseCidr(n.cidr), ip));
+  box.innerHTML = (c ? (fits ? `Inside ${esc(net)} (${esc(d.cidr)}).` : `<span class="err-t">Outside ${esc(net)} (${esc(d.cidr)}).</span>`) : '') + (hit.length && !fits ? ` Fits: ${hit.map(n => chip('.a-net', n.name)).join('')}` : '');
 }
 
 function openInfo() {
@@ -696,9 +789,9 @@ function openInfo() {
     <h3>About</h3>
     <div class="ibox"><h4>Web Network Manager by Mattias</h4>A browser-based inventory for the hosts and servers in your home or lab network: addresses, endpoints, schedules and notes, with one-click access to web interfaces. Everything is stored in this browser only, unencrypted.</div>
     <h3>Features</h3>
-    ${box('Hosts', [['Add and edit', 'press N for a new host, / to search and Ctrl+Enter to save. Sections in the host form can be minimized.'], ['Reorder and group', 'drag a host to reorder it or move it to another group, and drag a group header to reorder groups. Clear search and filters first. “Reset order” sorts everything A-Z.'], ['Reuse values', 'role, group, hardware, OS, language and tags show “Used before” buttons that fill the field again.'], ['Tags', 'click a tag to filter by it, click again to clear.']])}
-    ${box('Networks and endpoints', [['Networks', 'give a host one address row per network (for example LAN and VPN). With two or more networks a network filter appears in the header, like the role filter: pick a network to show only hosts that have an address on it and to build all links from those addresses.'], ['Endpoints', 'function is the button text. Standard ports are filled in per scheme (http 80, https 443, ssh 22...) and can be changed.'], ['DNS and IP', 'with both on the active network you get a main button using the DNS name and a “via IP” button for when DNS is down.'], ['SSH', 'Copy gives a ready ssh command. “Launcher .bat” downloads a Windows file that opens a terminal and connects (a web page cannot start a terminal by itself).'], ['Custom URL', 'scheme “url” opens any full URL as typed.']])}
-    ${box('Network map', [['Map', 'the Map button draws the connections between hosts as lines with arrows. The arrow points to the host being used, for example a router pointing to the DNS servers it uses.'], ['Connections', 'add them inside the map: pick From, To and a label such as “DNS server”. Hosts are arranged in rows automatically and only hosts with connections are shown.']])}
+    ${box('Hosts', [['Add and edit', 'press N for a new host, / to search and Ctrl+Enter to save. Sections in the host form can be minimized.'], ['Reorder', 'drag a host to reorder it; clear search and filters first. “Reset order” sorts everything A-Z.'], ['Reuse values', 'role, hardware, OS, language and tags show “Used before” buttons that fill the field again.'], ['Tags', 'click a tag to filter by it, click again to clear.']])}
+    ${box('Networks and endpoints', [['Networks', 'give a host one address row per network (for example LAN and VPN). With two or more networks a network filter appears in the header, like the role filter: pick a network to show only hosts that have an address on it and to build all links from those addresses.'], ['Subnets', 'the Networks button gives each network a subnet: set the numbers and drag the size slider. Host forms then check IPs against it and suggest the next free address.'], ['Endpoints', 'function is the button text. Standard ports are filled in per scheme (http 80, https 443, ssh 22...) and can be changed.'], ['DNS and IP', 'with both on the active network you get a main button using the DNS name and a “via IP” button for when DNS is down.'], ['SSH', 'Copy gives a ready ssh command. “Launcher .bat” downloads a Windows file that opens a terminal and connects (a web page cannot start a terminal by itself).'], ['Custom URL', 'scheme “url” opens any full URL as typed.']])}
+    ${box('Network map', [['Map', 'the Map button draws the connections between hosts as lines with arrows. The arrow points to the host being used, for example a router pointing to the DNS servers it uses.'], ['Connections', 'add them inside the map: pick From, To and a label such as “DNS server”. Hosts are arranged in rows automatically and only hosts with connections are shown. Each connection can belong to a network (or Auto, the one both hosts share); lines are coloured and patterned per network, and the Show selector at the top limits the map to one network and shows each host’s address on it.']])}
     ${box('Schedules and log', [['Schedules', 'recurring tasks per host such as updates, reboots or backups. Each has a name, manual or automatic, a repeat (every N days, or on specific days of the month such as the 1st and 2nd), a start date and a time window or note.'], ['Manual', 'shows when the task is due (orange within 7 days, red when overdue). Click Mark done after you have done it and the next due date counts from today.'], ['Automatic', 'only shows your note, for tasks that run by themselves.'], ['Log', 'records reboots, shutdowns, incidents, updates and notes with a time. Marking a reboot or update schedule as done adds a log entry.']])}
     ${box('Notes &amp; commands', [['Entries', 'free text for anything you want to keep and copy: location, serial number, warranty, the Docker compose YAML or useful commands. Add as many entries as you like, each with its own title. On the host card every entry is its own collapsible section with a Copy button, so only the ones you open are shown. In the Edit form, drag the ⠿ handle to change the order (or focus it and use the up and down arrow keys).']])}
     ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. Notes and commands are included.'], ['Reset', 'deletes everything after typing RESET.']])}
@@ -720,7 +813,8 @@ function openData() {
 /* ===== Events ===== */
 $('#addBtn').onclick = () => openHost();
 $('#infoBtn').onclick = openInfo;
-$('#mapBtn').onclick = () => { mapDraft.editId = ''; openMap(); };
+$('#netBtn').onclick = openNetworks;
+$('#mapBtn').onclick = () => { mapDraft.editId = ''; mapNet = curNet(); openMap(); };
 $('#dataBtn').onclick = openData;
 $('#search').oninput = render;
 $('#roleFilter').onchange = render;
@@ -729,14 +823,6 @@ $('#themeBtn').onclick = () => {
   try { localStorage.setItem(STORE.theme, dark ? 'dark' : 'light'); } catch {}
 };
 $('#hosts').onclick = async e => {
-  const gb = e.target.closest('[data-gact]');
-  if (gb) {
-    const name = gb.closest('.group').dataset.group;
-    if (gb.dataset.gact === 'rename') return renameGroup(name);
-    const i = layout.collapsed.indexOf(name);
-    if (i < 0) layout.collapsed.push(name); else layout.collapsed.splice(i, 1);
-    saveHosts(); return render();
-  }
   const tg = e.target.closest('[data-tag]');
   if (tg) { activeTag = activeTag === tg.dataset.tag ? '' : tg.dataset.tag; return render(); }
   const b = e.target.closest('[data-act]'); if (!b) return;
@@ -761,7 +847,6 @@ $('#tagBar').onclick = e => { const t = e.target.closest('[data-tag]'); if (t) {
 $('#netSel').onchange = () => { layout.net = $('#netSel').value; saveHosts(); render(); };
 $('#resetOrder').onclick = () => {
   hosts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-  layout.order = [...new Set(hosts.map(h => h.group))].sort((a, b) => (!a - !b) || a.localeCompare(b));
   if (saveHosts()) { render(); showMessage('Order reset to A–Z', 'success'); }
 };
 $('#overlay').onclick = e => {
@@ -769,13 +854,14 @@ $('#overlay').onclick = e => {
   if (e.target.id === 'overlay') return downOnBackdrop && softClose();
   const add = e.target.closest('[data-add]');
   if (add) {
-    const k = add.dataset.add, rows = { addrs: () => addrRow({ net: defNet(), ip: '', dns: '' }), scheds: () => schedRow({ name: '', mode: 'manual', days: '', start: '', last: '', note: '' }), eps: () => epRow({ label: '', scheme: 'https', port: '443', path: '' }), notes: () => docRow({ title: '', text: '' }) };
+    const k = add.dataset.add, rows = { nets: () => netRow({ name: '', cidr: suggestNet(), note: '' }, true), addrs: () => addrRow({ net: defNet(), ip: '', dns: '' }), scheds: () => schedRow({ name: '', mode: 'manual', days: '', start: '', last: '', note: '' }), eps: () => epRow({ label: '', scheme: 'https', port: '443', path: '' }), notes: () => docRow({ title: '', text: '' }) };
     const box = $('#' + k); box.insertAdjacentHTML('beforeend', rows[k]());
     if (k === 'notes') box.lastElementChild.querySelector('.d-title').focus();
+    if (k === 'nets') { netRefresh(box.lastElementChild); box.lastElementChild.querySelector('.n-name').focus(); }
     dirty = true; return;
   }
   const rm = e.target.closest('[data-rm]');
-  if (rm) { rm.closest('.arow,.erow,.srow,.drow').remove(); dirty = true; return; }
+  if (rm) { rm.closest('.arow,.erow,.srow,.drow,.nrow').remove(); dirty = true; return; }
   const ld = e.target.closest('[data-logdel]');
   if (ld) { const h = hosts.find(x => x.id === editingId); if (h) { h.log.splice(+ld.dataset.logdel, 1); saveHosts(); render(); openLog(editingId); } return; }
   const ld2 = e.target.closest('[data-ldel]');
@@ -783,11 +869,15 @@ $('#overlay').onclick = e => {
   const le = e.target.closest('[data-ledit]');
   if (le) { mapDraft.editId = le.dataset.ledit; openMap(); return; }
   if (e.target.closest('[data-canceledit]')) { mapDraft.editId = ''; openMap(); return; }
+  const ps = e.target.closest('[data-preset],[data-pstep]');
+  if (ps) { const r = ps.closest('.nrow'); if (ps.dataset.preset) netSet(r, ps.dataset.preset); else { const pn = r.querySelector('.n-pn'); pn.value = Math.min(32, Math.max(1, (+pn.value || 24) + +ps.dataset.pstep)); netNorm(r); } dirty = true; return; }
   const chip = e.target.closest('[data-fill],[data-row]');
   if (chip) {
-    const f = chip.dataset.row ? chip.closest('.arow,.srow,.drow').querySelector(chip.dataset.row) : $('#' + chip.dataset.fill);
+    const f = chip.dataset.row ? chip.closest('.arow,.srow,.drow,.nrow').querySelector(chip.dataset.row) : $('#' + chip.dataset.fill);
     f.value = chip.hasAttribute('data-append') && f.value.trim() ? f.value.replace(/[,\s]*$/, '') + ', ' + chip.dataset.v : chip.dataset.v;
-    f.focus(); dirty = true; return;
+    f.focus(); dirty = true;
+    const ar = f.closest('.arow'), nr = f.closest('.nrow'); if (ar) addrHint(ar); if (nr) netRefresh(nr);
+    return;
   }
   const t = e.target.closest('button'); if (!t) return;
   if (t.hasAttribute('data-save') && modalSave) modalSave();
@@ -799,7 +889,7 @@ $('#overlay').onclick = e => {
     if (saveHosts()) { closeModal(); render(); showMessage(`Deleted ${gone ? gone.name : 'host'}`, 'success'); }
   }
   if (t.id === 'exportBtn') {
-    const blob = new Blob([JSON.stringify({ app: 'network-manager', schema: SCHEMA, exported: new Date().toISOString(), hosts, layout, links }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ app: 'network-manager', schema: SCHEMA, exported: new Date().toISOString(), hosts, layout, links, networks }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `web-network-manager-backup-${today()}.json`;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     showMessage('Backup exported', 'success');
@@ -808,13 +898,23 @@ $('#overlay').onclick = e => {
   if (t.id === 'mdBtn') { dl(`network-inventory-${today()}.md`, toMarkdown(), 'text/markdown'); showMessage('Readable export created', 'success'); }
   if (t.id === 'resetBtn') { $('#resetStep').classList.remove('hide'); t.classList.add('hide'); $('#resetInput').focus(); }
   if (t.id === 'resetConfirm' && $('#resetInput').value === 'RESET') {
-    hosts = []; layout = sanitizeLayout(); links = []; if (saveHosts()) { closeModal(); render(); showMessage('All data was reset', 'success'); }
+    hosts = []; layout = sanitizeLayout(); links = []; networks = []; if (saveHosts()) { closeModal(); render(); showMessage('All data was reset', 'success'); }
   }
 };
 $('#overlay').onpointerdown = e => { downOnBackdrop = e.target.id === 'overlay'; };
-$('#overlay').oninput = e => { if (e.target.id !== 'resetInput') dirty = true; if (e.target.id === 'resetInput') $('#resetConfirm').disabled = e.target.value !== 'RESET'; };
+$('#overlay').oninput = e => {
+  if (e.target.matches('.a-ip,.a-net')) addrHint(e.target.closest('.arow'));
+  if (e.target.matches('.n-name,.n-o,.n-pn,.n-p')) {
+    const t = e.target, r = t.closest('.nrow');
+    if (t.matches('.n-o')) { const dot = t.value.includes('.'); t.value = t.value.replace(/\D/g, '').slice(0, 3); const os = [...r.querySelectorAll('.n-o')], k = os.indexOf(t); if (((dot && t.value) || t.value.length === 3) && os[k + 1]) { os[k + 1].focus(); os[k + 1].select(); } }
+    if (t.matches('.n-pn')) t.value = t.value.replace(/\D/g, '').slice(0, 2);
+    if (t.matches('.n-p')) r.querySelector('.n-pn').value = t.value;
+    netRefresh(r, t.matches('.n-p') ? 'p' : '');
+  } if (e.target.id !== 'resetInput') dirty = true; if (e.target.id === 'resetInput') $('#resetConfirm').disabled = e.target.value !== 'RESET'; };
 $('#overlay').onchange = e => {
   const t = e.target; dirty = true;
+  if (t.matches('.n-o,.n-pn,.n-p')) netNorm(t.closest('.nrow'));
+  if (t.id === 'm-net') { mapDraft = { ...mapDraft, from: $('#m-from').value, label: $('#m-label').value, net: '' }; mapNet = t.value; openMap(); return; }
   if (t.classList.contains('s-repeat')) { const r = t.closest('.srow'), m = t.value === 'month'; r.querySelector('.s-daysbox').classList.toggle('hide', m); r.querySelector('.s-monthbox').classList.toggle('hide', !m); }
   if (t.classList.contains('e-scheme')) {
     const r = t.closest('.erow'), u = t.value === 'url', port = r.querySelector('.e-port'), old = t.dataset.prev;
@@ -824,6 +924,12 @@ $('#overlay').onchange = e => {
     r.querySelector('.e-path').placeholder = t.value === 'ssh' ? 'Username' : '/path';
     r.querySelector('.e-path').classList.toggle('hide', u);
   }
+};
+$('#overlay').onpaste = e => {
+  if (!e.target.matches?.('.n-o')) return;
+  const m = e.clipboardData.getData('text').trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:\/(\d{1,2}))?$/); if (!m) return;
+  e.preventDefault(); const r = e.target.closest('.nrow'); r.querySelectorAll('.n-o').forEach((i, k) => { i.value = m[k + 1]; });
+  if (m[5]) r.querySelector('.n-pn').value = m[5]; netNorm(r); dirty = true;
 };
 $('#importFile').onchange = async e => {
   const file = e.target.files[0]; e.target.value = '';
@@ -835,8 +941,8 @@ $('#importFile').onchange = async e => {
     if (!Array.isArray(arr)) throw new Error();
     const from = Number.isInteger(data.schema) ? data.schema : 0;
     if (from > SCHEMA) return showMessage('This backup was made by a newer version of the app.\nUpdate the page before importing it.');
-    const d = normalize(migrate({ hosts: arr.filter(h => h && typeof h === 'object' && h.name), layout: data.layout, links: data.links }, from));
-    hosts = d.hosts; layout = d.layout; links = d.links;
+    const d = normalize(migrate({ hosts: arr.filter(h => h && typeof h === 'object' && h.name), layout: data.layout, links: data.links, networks: data.networks }, from));
+    hosts = d.hosts; layout = d.layout; links = d.links; networks = d.networks;
     if (saveHosts()) { closeModal(); render(); showMessage(`Imported ${hosts.length} host${hosts.length === 1 ? '' : 's'}`, 'success'); }
   } catch { showMessage('Import failed: the file is not a valid Web Network Manager backup.'); }
 };
@@ -860,50 +966,33 @@ function startDrag() {
   if (!drag || drag.active) return;
   if (filtered()) { showMessage('Clear the search and role filter to reorder.', 'info'); drag = null; return; }
   drag.active = true; clearTimeout(drag.timer);
-  (drag.card || drag.group).classList.add('dragging');
+  drag.card.classList.add('dragging');
   document.body.classList.add('is-dragging');
   getSelection()?.removeAllRanges(); navigator.vibrate?.(15);
   autoScroll();
 }
 function commitOrder() {
-  const byId = new Map(hosts.map(h => [h.id, h])), out = [], order = [];
-  document.querySelectorAll('#hosts .group').forEach(g => {
-    order.push(g.dataset.group);
-    g.querySelectorAll('.host').forEach(c => { const h = byId.get(c.dataset.id); if (h) { h.group = g.dataset.group; out.push(h); } });
-  });
-  if (out.length === hosts.length) { hosts = out; layout.order = order; saveHosts(); }
+  const byId = new Map(hosts.map(h => [h.id, h])), out = [...document.querySelectorAll('#hosts .host')].map(c => byId.get(c.dataset.id)).filter(Boolean);
+  if (out.length === hosts.length) { hosts = out; saveHosts(); }
   render();
 }
 function endDrag(e) {
   if (!drag || (e && e.pointerId !== drag.id)) return;
   clearTimeout(drag.timer);
   const was = drag.active;
-  if (was) { (drag.card || drag.group).classList.remove('dragging'); document.body.classList.remove('is-dragging'); }
+  if (was) { drag.card.classList.remove('dragging'); document.body.classList.remove('is-dragging'); }
   drag = null;
   if (was) commitOrder();
 }
 function moveAt(x, y) {
   if (!drag || !drag.active) return;
-  const place = (t, el, after) => { if (after && t.nextElementSibling !== el) t.after(el); else if (!after && t.previousElementSibling !== el) t.before(el); };
-  if (drag.card) {
-    for (const g of document.querySelectorAll('#hosts .group-head')) {
-      const r = g.getBoundingClientRect();
-      if (y >= r.top && y <= r.bottom && g.parentElement !== drag.card.closest('.group')) { g.parentElement.querySelector('.cards').prepend(drag.card); return; }
-    }
-    for (const s of document.querySelectorAll('#hosts .host')) {
-      if (s === drag.card) continue;
-      const r = s.getBoundingClientRect();
-      if (r.width && x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 16 && y <= r.bottom + 16) {
-        const same = Math.abs(r.top - drag.card.getBoundingClientRect().top) < 30;
-        place(s, drag.card, same ? x > r.left + r.width / 2 : y > r.top + r.height / 2);
-        return;
-      }
-    }
-  } else {
-    for (const g of document.querySelectorAll('#hosts .group')) {
-      if (g === drag.group) continue;
-      const r = g.getBoundingClientRect();
-      if (y >= r.top && y <= r.bottom) { place(g, drag.group, y > r.top + r.height / 2); break; }
+  for (const s of document.querySelectorAll('#hosts .host')) {
+    if (s === drag.card) continue;
+    const r = s.getBoundingClientRect();
+    if (r.width && x >= r.left - 12 && x <= r.right + 12 && y >= r.top - 16 && y <= r.bottom + 16) {
+      const same = Math.abs(r.top - drag.card.getBoundingClientRect().top) < 30, after = same ? x > r.left + r.width / 2 : y > r.top + r.height / 2;
+      if (after && s.nextElementSibling !== drag.card) s.after(drag.card); else if (!after && s.previousElementSibling !== drag.card) s.before(drag.card);
+      return;
     }
   }
 }
@@ -917,9 +1006,8 @@ function autoScroll() {
 }
 $('#hosts').addEventListener('pointerdown', e => {
   if (drag || (e.pointerType === 'mouse' && e.button !== 0) || e.target.closest('a,button,.notes,details')) return;
-  const card = e.target.closest('.host'), group = e.target.closest('.group');
-  if (!group || (!card && !e.target.closest('.group-head'))) return;
-  drag = { card, group, id: e.pointerId, type: e.pointerType, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false, timer: null };
+  const card = e.target.closest('.host'); if (!card) return;
+  drag = { card, id: e.pointerId, type: e.pointerType, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, active: false, timer: null };
   if (e.pointerType !== 'mouse') drag.timer = setTimeout(startDrag, 350);
 });
 document.addEventListener('pointermove', e => {
