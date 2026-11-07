@@ -29,7 +29,7 @@ html,body { width:100%; min-height:100vh; min-height:100dvh; margin:0; padding:0
 body { font-family:Arial,sans-serif; background:var(--bg-color); color:var(--fg-color); transition:background-color .3s,color .3s; padding:0 12px 30px; }
 .container { position:relative; width:100%; max-width:800px; background:var(--container-bg); padding:20px; margin:20px auto; border-radius:8px; box-shadow:0 2px 10px var(--shadow-color); }
 h1 { color:var(--accent-color); text-align:center; margin-top:0; }
-.subtitle { text-align:center; font-size:1.1em; margin:0 0 20px; border-bottom:2px solid var(--border-color); padding-bottom:12px; }
+.subtitle { text-align:center; font-size:1.1em; font-weight:normal; margin:0 0 20px; border-bottom:2px solid var(--border-color); padding-bottom:12px; }
 .controls { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .controls .grow { flex:1 1 180px; }
 .btn { padding:8px 15px; border:1px solid var(--border-color); border-radius:4px; cursor:pointer; font-weight:bold; font-family:inherit; font-size:.9em; background:var(--button-bg); color:var(--fg-color); text-decoration:none; display:inline-block; transition:background-color .2s; }
@@ -46,7 +46,7 @@ textarea { resize:vertical; min-height:70px; }
 .controls select { width:auto; }
 label { display:block; font-size:.85em; color:var(--summary-color); margin:0 0 4px; }
 .count { color:var(--summary-color); font-size:.85em; margin:0 0 10px; }
-mark { background:var(--highlight-bg); color:#000; border-radius:2px; padding:0 1px; }
+mark,mark.search-highlight { background:var(--highlight-bg); color:#000; border-radius:2px; padding:0 1px; }
 
 /* Host cards */
 .host { background:var(--entry-bg); border:1px solid var(--border-color); border-left:4px solid var(--border-color); border-radius:6px; padding:12px 14px; cursor:grab; -webkit-touch-callout:none; position:relative; }
@@ -59,9 +59,7 @@ mark { background:var(--highlight-bg); color:#000; border-radius:2px; padding:0 
 .ip:hover { text-decoration:underline; }
 .meta { color:var(--summary-color); font-size:.85em; margin-top:6px; }
 .meta .err { color:var(--error-color); font-weight:bold; } .meta .warn { color:var(--warning-color); font-weight:bold; } .meta .ok { color:var(--success-color); }
-.links,.actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-.links { gap:10px; margin-top:14px; }
-.actions { padding-top:10px; border-top:1px solid var(--separator-color); }
+.actions { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; padding-top:10px; border-top:1px solid var(--separator-color); }
 .notes { margin-top:8px; font-size:.88em; color:var(--summary-color); white-space:pre-wrap; word-break:break-word; }
 .empty { text-align:center; padding:35px 10px; color:var(--summary-color); border:1px dashed var(--border-color); border-radius:6px; }
 
@@ -136,10 +134,26 @@ details.fs[open] > summary::before { content:'▾ '; }
 .n-o { width:58px; text-align:center; font-family:inherit; opacity:.6; }
 .n-o.fix { opacity:1; border-color:var(--accent-color); font-weight:bold; }
 .n-o.part { opacity:1; border-style:dashed; border-color:var(--accent-color); }
-.step { display:inline-flex; align-items:center; gap:4px; margin-left:4px; }
-.n-pn { width:52px; text-align:center; }
-.n-p { accent-color:var(--accent-color); padding:0; border:none; background:none; margin:10px 0 0; }
-.srange { display:flex; justify-content:space-between; font-size:.75em; color:var(--summary-color); }
+/* Amount picker (slider + stepper), see design guidelines section 6 */
+.amount-picker { display:flex; align-items:center; gap:16px; width:100%; max-width:360px; margin-top:8px; }
+.amount-picker input.amount-slider { --fill:0%; -webkit-appearance:none; appearance:none; flex:1; width:auto; min-width:0; height:28px; margin:0; padding:0; border:none; border-radius:0; background:transparent; cursor:pointer; outline:none; }
+.amount-slider::-webkit-slider-runnable-track { height:6px; border-radius:3px; border:1px solid var(--border-color); background:linear-gradient(to right,var(--accent-color) var(--fill),var(--entry-bg) var(--fill)); }
+.amount-slider::-moz-range-track { height:6px; border-radius:3px; border:1px solid var(--border-color); background:linear-gradient(to right,var(--accent-color) var(--fill),var(--entry-bg) var(--fill)); }
+.amount-slider::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; margin-top:-7px; border:none; border-radius:50%; background:var(--accent-color); box-shadow:0 1px 4px var(--shadow-color); transition:transform .15s; }
+.amount-slider::-moz-range-thumb { width:18px; height:18px; border:none; border-radius:50%; background:var(--accent-color); box-shadow:0 1px 4px var(--shadow-color); transition:transform .15s; }
+.amount-slider:hover::-webkit-slider-thumb,.amount-slider:active::-webkit-slider-thumb { transform:scale(1.15); }
+.amount-slider:hover::-moz-range-thumb,.amount-slider:active::-moz-range-thumb { transform:scale(1.15); }
+.amount-slider:focus-visible::-webkit-slider-thumb { box-shadow:0 0 0 4px color-mix(in srgb,var(--accent-color) 35%,transparent); }
+.amount-slider:focus-visible::-moz-range-thumb { box-shadow:0 0 0 4px color-mix(in srgb,var(--accent-color) 35%,transparent); }
+.amount-stepper { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.amount-picker .step-btn { width:36px; height:36px; padding:0; border:1px solid var(--border-color); border-radius:6px; background:var(--button-bg); color:var(--fg-color); font-family:inherit; font-size:1.2em; font-weight:bold; line-height:1; cursor:pointer; user-select:none; touch-action:manipulation; transition:background-color .2s; }
+.amount-picker .step-btn:hover { background:var(--select-bg); }
+.amount-picker .step-btn:active { transform:scale(.95); }
+.amount-picker input.amount-input[type="number"] { width:56px; height:36px; padding:0; border:1px solid var(--border-color); border-radius:6px; background:var(--entry-bg); color:var(--fg-color); font-family:inherit; font-size:1.05em; font-weight:bold; text-align:center; -moz-appearance:textfield; appearance:textfield; }
+.amount-picker input.amount-input[type="number"]::-webkit-outer-spin-button,.amount-picker input.amount-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.amount-picker input.amount-input[type="number"]:focus { outline:none; border-color:var(--accent-color); }
+.srange { display:flex; justify-content:space-between; max-width:360px; padding-right:156px; font-size:.75em; color:var(--summary-color); }
+.row > .s-daysbox { flex:1 1 300px; }
 .bits { display:flex; gap:6px; margin:8px 0 4px; }
 .bits span { flex:1; display:flex; gap:2px; }
 .bits i { flex:1; height:10px; border-radius:2px; background:var(--accent-color); }
@@ -162,10 +176,17 @@ details.fs[open] > summary::before { content:'▾ '; }
 .modal-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
 .modal-actions .spacer { margin-left:auto; }
 .danger-zone { border-top:2px solid var(--error-color); margin-top:20px; padding-top:12px; }
+.danger-title { color:var(--error-color); margin:14px 0 8px; font-size:1.05em; }
+.callout { border-left:4px solid var(--border-color); background:var(--entry-bg); border-radius:4px; padding:10px 14px; margin:12px 0; font-size:.9em; line-height:1.5; }
+.callout.err { border-left-color:var(--error-color); } .callout.warn { border-left-color:var(--warning-color); }
+.callout .modal-actions { margin-top:10px; }
+.lab { font-size:.85em; color:var(--summary-color); margin:0 0 2px; }
+.modal:focus { outline:none; }
 
 /* Floating message banner */
 .message-area { position:absolute; top:0; left:0; right:0; min-height:80px; z-index:1100; border-radius:8px; padding:10px 15px; font-family:'Consolas','Monaco',monospace; font-size:.9em; font-weight:bold; line-height:1.6; text-align:left; white-space:pre-wrap; word-wrap:break-word; border:1px solid transparent; opacity:1; visibility:visible; transition:opacity .3s,visibility .3s; }
 .message-area.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+.message-area.pinned { position:fixed; top:8px; }  /* container scrolled off screen: keep the banner visible */
 .message-area.error { background:color-mix(in srgb,var(--error-color) 10%,white); color:var(--error-color); border-color:var(--error-color); }
 .message-area.warning { background:color-mix(in srgb,var(--warning-color) 10%,white); color:var(--warning-color); border-color:var(--warning-color); }
 .message-area.info { background:color-mix(in srgb,var(--info-color) 10%,white); color:var(--info-color); border-color:var(--info-color); }
@@ -184,13 +205,15 @@ footer a:hover { text-decoration:underline; }
 footer .footer-portfolio { margin-top:8px; font-size:.85em; opacity:.7; }
 .hide { display:none !important; }
 @media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+@media (max-width:600px) { input,select,textarea { font-size:16px; } }  /* stops iOS from zooming in on focus */
+@media (pointer:coarse) { .btn.sm { padding:8px 12px; } .chip { padding:6px 11px; } .x,.dh { padding:6px 10px; } }
 </style>
 </head>
 <body class="dark-mode">
 <div class="container">
   <div id="message-area" class="message-area hidden" role="status" aria-live="polite"></div>
   <h1>Web Network Manager</h1>
-  <p class="subtitle">by Mattias</p>
+  <h2 class="subtitle">by Mattias</h2>
 
   <div class="controls">
     <button class="btn accent" id="addBtn">+ Add Host</button>
@@ -214,7 +237,7 @@ footer .footer-portfolio { margin-top:8px; font-size:.85em; opacity:.7; }
   <div class="footer-portfolio">More projects? <a href="https://mattiasmilger.github.io/" target="_blank" rel="noopener noreferrer">Visit my portfolio</a></div>
 </footer>
 
-<div class="overlay hide" id="overlay"><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
+<div class="overlay hide" id="overlay"><div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"></div></div>
 <input type="file" id="importFile" accept="application/json,.json" class="hide">
 <script>
 /* ===== Constants and state ===== */
@@ -229,13 +252,16 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, URL_RE = /^(https?|ssh|rdp|vnc|smb|ftp):\
 const $ = s => document.querySelector(s);
 let hosts = [], layout = { net: '' }, links = [], networks = [], mapNet = '', activeTag = '', view = { net: '', multi: false };
 let modalSave = null, dirty = false, downOnBackdrop = false, deleteArmed = false, editingId = null, mapDraft = { from: '', label: '', editId: '', net: '' };
-let storageLocked = false, pendingBackup = null;
+let storageLocked = false, pendingBackup = null, unreadableData = false, lastFocus = null, searchTimer = 0;
 
 /* ===== Utilities ===== */
 function showMessage(message, type = 'error') {
   const area = $('#message-area');
   area.textContent = message;
   area.className = `message-area ${type}`;
+  const box = area.parentElement.getBoundingClientRect(), pin = box.top < 0;  /* keep the banner visible when the page is scrolled down */
+  area.classList.toggle('pinned', pin);
+  area.style.left = pin ? box.left + 'px' : ''; area.style.right = pin ? document.documentElement.clientWidth - box.right + 'px' : '';
   if (area.timeoutId) clearTimeout(area.timeoutId);
   const d = (type === 'success' || type === 'info') ? MESSAGE_DURATION_SHORT : MESSAGE_DURATION_LONG;
   area.timeoutId = setTimeout(() => area.classList.add('hidden'), d);
@@ -246,12 +272,27 @@ const today = () => new Date().toLocaleDateString('sv-SE');
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const dayNum = s => Math.round(Date.parse(s) / 864e5);
 let hlQuery = '', hlRegex = null;
+/* Highlights on the raw text and escapes each piece, so searching "lt" or "amp" can never cut an HTML entity in half */
 function hl(text, q) {
-  const t = esc(text);
-  if (!q) return t;
-  if (q !== hlQuery) { hlQuery = q; hlRegex = new RegExp(esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); }
-  return t.replace(hlRegex, m => `<mark>${m}</mark>`);
+  const raw = String(text ?? '');
+  if (!q) return esc(raw);
+  if (q !== hlQuery) { hlQuery = q; hlRegex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'); }
+  let out = '', last = 0;
+  raw.replace(hlRegex, (m, i) => { out += esc(raw.slice(last, i)) + `<mark class="search-highlight">${esc(m)}</mark>`; last = i + m.length; return m; });
+  return out + esc(raw.slice(last));
 }
+async function copyText(v) {
+  if (v == null) return;
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(v);
+    else {  /* plain http pages have no clipboard API */
+      const t = document.createElement('textarea'); t.value = v; t.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); t.remove(); if (!ok) throw new Error();
+    }
+    showMessage(v.length > 60 ? 'Copied to clipboard' : `Copied ${v}`, 'info');
+  } catch { showMessage('Could not access the clipboard.'); }
+}
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 function dl(name, text, type) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -366,19 +407,25 @@ function loadStore() {
   const parse = s => { try { return JSON.parse(s); } catch { return null; } };
   const version = Number(get(STORE.schema)) || 0, raw = { hosts: get(STORE.hosts), layout: get(STORE.layout), links: get(STORE.links), networks: get(STORE.networks) };
   let d = { hosts: parse(raw.hosts), layout: parse(raw.layout), links: parse(raw.links), networks: parse(raw.networks) };
+  unreadableData = raw.hosts !== null && !Array.isArray(d.hosts);
   d.hosts = Array.isArray(d.hosts) ? d.hosts.filter(h => h && typeof h === 'object') : [];
   if (version > SCHEMA) storageLocked = true;
   else if (version < SCHEMA) {
     d = migrate(d, version);
     if (raw.hosts || raw.layout || raw.links) pendingBackup = { schema: version, savedAt: nowStamp(), ...raw };
   }
+  /* Unreadable hosts would be overwritten by the next save, so keep the raw text in the backup key first */
+  if (unreadableData && !storageLocked) pendingBackup = { ...(pendingBackup || { schema: version, savedAt: nowStamp(), ...raw }), reason: 'unreadable' };
   return d;
 }
 function boot() {
   const d = normalize(loadStore());
   hosts = d.hosts; layout = d.layout; links = d.links; networks = d.networks;
   if (storageLocked) showMessage('This data was saved by a newer version of the app.\nIt is shown read-only. Update the page to edit it.', 'warning');
+  else if (unreadableData) showMessage('Saved hosts could not be read.\nThe raw data is kept in netmanager.backup once you save.', 'warning');
 }
+const blocked = () => { if (storageLocked) showMessage('Read-only: the saved data comes from a newer version of this app.', 'warning'); return storageLocked; };
+function runSave() { if (modalSave && !blocked()) modalSave(); }
 function saveHosts() {
   if (storageLocked) { showMessage('Saving is disabled: the saved data comes from a newer version of this app.'); return false; }
   try {
@@ -460,7 +507,8 @@ function toMarkdown() {
 }
 
 /* ===== Rendering ===== */
-const noteHtml = (n, q) => `<details class="rb nt"${q && (n.title + '\n' + n.text).toLowerCase().includes(q.toLowerCase()) ? ' open' : ''}><summary>${hl(n.title, q)}</summary><div class="notes">${hl(n.text, q)}</div><div style="margin-top:8px"><button class="btn sm" data-act="copy" data-v="${esc(n.text)}">Copy</button></div></details>`;
+const openNotes = new Set();  /* notes the person opened stay open when the list re-renders */
+const noteHtml = (n, i, q, hid) => { const key = `${hid}:${i}`; return `<details class="rb nt" data-key="${esc(key)}"${openNotes.has(key) || (q && (n.title + '\n' + n.text).toLowerCase().includes(q.toLowerCase())) ? ' open' : ''}><summary>${hl(n.title, q)}</summary><div class="notes">${hl(n.text, q)}</div><div style="margin-top:8px"><button class="btn sm" data-act="copynote" data-i="${i}">Copy</button></div></details>`; };
 function cardHtml(h, q) {
   const infos = h.schedules.map(schedInfo), cls = infos.reduce((a, x) => RANK[x.cls] > RANK[a] ? x.cls : a, ''), A = pickAddr(h, view.net), multi = view.multi || h.addrs.length > 1;
   const sched = infos.map((x, k) => `<span class="${x.cls}">${esc(h.schedules[k].name)}: ${esc(x.text)}</span>`).join('<br>');
@@ -490,9 +538,9 @@ function cardHtml(h, q) {
     </div>
     ${addrs}
     <div class="meta">${info ? info + '<br>' : ''}${sched}${last ? `<br>Last event: ${esc(last.type)}, ${esc(last.t.replace('T', ' '))}` : ''}</div>
-    ${h.tags.length ? `<div class="tags">${h.tags.map(t => `<button class="chip tag${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}">${hl(t, q)}</button>`).join('')}</div>` : ''}
+    ${h.tags.length ? `<div class="tags">${h.tags.map(t => `<button class="chip tag${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}" aria-pressed="${t === activeTag}">${hl(t, q)}</button>`).join('')}</div>` : ''}
     ${links ? `<div class="links">${links}</div>` : ''}
-    ${h.notes.map(n => noteHtml(n, q)).join('')}
+    ${h.notes.map((n, i) => noteHtml(n, i, q, h.id)).join('')}
     <div class="actions"><button class="btn sm" data-act="edit">Edit</button><button class="btn sm" data-act="log">Log${h.log.length ? ' (' + h.log.length + ')' : ''}</button>${h.schedules.map((x, k) => x.mode === 'manual' ? `<button class="btn sm" data-act="done" data-i="${k}">Mark ${esc(x.name.toLowerCase())} done</button>` : '').join('')}</div>
   </div>`;
 }
@@ -507,7 +555,7 @@ function render() {
   const tags = [...new Set(hosts.flatMap(h => h.tags))].sort((a, b) => a.localeCompare(b));
   if (activeTag && !tags.includes(activeTag)) activeTag = '';
   $('#tagBar').classList.toggle('hide', !tags.length);
-  $('#tagBar').innerHTML = tags.map(t => `<button class="chip${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}">${esc(t)}</button>`).join('');
+  $('#tagBar').innerHTML = tags.map(t => `<button class="chip${t === activeTag ? ' on' : ''}" data-tag="${esc(t)}" aria-pressed="${t === activeTag}">${esc(t)}</button>`).join('');
   const role = rf.value, q = $('#search').value.trim(), ql = q.toLowerCase(), net = curNet(), filt = !!(q || role || activeTag || net);
   const list = hosts.filter(h => (!role || h.role === role) && (!activeTag || h.tags.includes(activeTag)) && (!net || h.addrs.some(a => a.net === net)) &&
     (!ql || [h.name, h.role, h.os, h.lang, h.hardware, ...h.notes.map(n => n.title + ' ' + n.text), h.tags.join(' '), ...h.addrs.map(a => `${a.net} ${a.ip} ${a.dns}`), ...h.endpoints.map(e => e.label + ' ' + e.port)].join(' ').toLowerCase().includes(ql)));
@@ -520,38 +568,63 @@ function render() {
 
 /* ===== Dialogs and forms ===== */
 function openModal(html, onSave) {
+  const fresh = $('#overlay').classList.contains('hide'), m = $('#modal');
+  if (fresh) lastFocus = document.activeElement;
   modalSave = onSave || null; deleteArmed = false; dirty = false;
-  $('#modal').className = 'modal';
-  $('#modal').innerHTML = html;
+  m.className = 'modal';
+  m.innerHTML = html;
+  m.querySelectorAll('.amount-picker').forEach(paintPicker);
   $('#overlay').classList.remove('hide');
-  const f = $('#modal').querySelector('input:not([type=hidden]),textarea,button');
-  if (f) f.focus();
+  /* Fresh dialog on a device with a keyboard: start in the first text field. Otherwise focus the dialog itself (no on-screen keyboard popping up, no scroll jump on re-render). */
+  const f = fresh && window.matchMedia?.('(pointer: fine)').matches !== false ? m.querySelector('input:not([type=hidden]):not([type=range]):not([type=file]),textarea') : null;
+  (f || m).focus({ preventScroll: !f });
+}
+/* Amount picker: the number input is the single source of truth (design guidelines, section 6) */
+const pickerOf = el => el.closest('.amount-picker');
+function paintPicker(p) {
+  const sl = p.querySelector('.amount-slider'), inp = p.querySelector('.amount-input'), v = parseInt(inp.value, 10), lo = +sl.min, hi = +sl.max, sv = isNaN(v) ? lo : Math.min(hi, Math.max(lo, v));
+  sl.value = sv; sl.style.setProperty('--fill', isNaN(v) ? '0%' : (sv - lo) / (hi - lo) * 100 + '%');
+}
+function stepPicker(btn) {
+  const p = pickerOf(btn), inp = p.querySelector('.amount-input'), min = +inp.min || 1, max = +inp.max || 100, cur = parseInt(inp.value, 10), d = +btn.dataset.step;
+  if (isNaN(cur)) { if (d < 0) return; inp.value = min; } else inp.value = Math.min(max, Math.max(min, cur + d));
+  paintPicker(p);
+  inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+}
+function trapFocus(e) {
+  const m = $('#modal'), f = [...m.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),summary')].filter(x => x.getClientRects().length);
+  if (!f.length) { e.preventDefault(); return m.focus(); }
+  const first = f[0], last = f[f.length - 1], a = document.activeElement;
+  if (!m.contains(a) || a === m) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+  else if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
 }
 function softClose() {
   if (dirty) { dirty = false; return showMessage('You have unsaved changes.\nPress Escape or click outside again to discard them, or use Save.', 'warning'); }
   closeModal();
 }
-function closeModal() { $('#overlay').classList.add('hide'); $('#modal').innerHTML = ''; modalSave = null; }
-const modalHead = t => `<h2>${t}<button class="x" data-close aria-label="Close">×</button></h2>`;
+function closeModal() { $('#overlay').classList.add('hide'); $('#modal').innerHTML = ''; modalSave = null; if (lastFocus?.isConnected) lastFocus.focus?.(); lastFocus = null; }
+const modalHead = t => `<h2><span id="modal-title">${t}</span><button class="x" data-close aria-label="Close">×</button></h2>`;
 
 const EMOJI = ['🖥️','💻','🗄️','💾','📡','🛜','🔌','🧱','🛡️','🔥','🍓','📺','📱','🏠','☁️','🔒','🔑','🧪','🎮','📦','🌐','⚙️','🔧','🛠️','📷','🎥','🖨️','🔊','🎵','💡','🌡️','⚡','🔋','🕹️','📁','📂','🗂️','🧠','🤖','🐧','🐳','🪟','🍎','🐙','📊','📈','📬','⏰','🧭','🚨','🛰️','📶','🔔','🧰','💽','📀','🧮','🌍','🔭','🎛️','🧯'];
 const LOGT = ['reboot', 'shutdown', 'incident', 'update', 'note'];
 const used = k => [...new Set(hosts.map(h => h[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 const chips = (id, vals, c = '', lab = '', app = false) => vals.length ? `<div class="chips${c ? ' emo' : ''}">${lab ? `<span class="hint">${lab}</span>` : ''}${vals.map(v => `<button type="button" class="chip ${c}" data-fill="f-${id}"${app ? ' data-append' : ''} data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : '';
-const schedRow = s => `<div class="srow"><div class="r"><input class="s-name" value="${esc(s.name)}" placeholder="Updates, Reboot, Backup..." style="flex:1 1 150px"><select class="s-mode" style="flex:0 0 110px"><option value="manual"${s.mode === 'manual' ? ' selected' : ''}>Manual</option><option value="auto"${s.mode === 'auto' ? ' selected' : ''}>Automatic</option></select><select class="s-repeat" style="flex:0 0 150px"><option value="days"${s.repeat !== 'month' ? ' selected' : ''}>Every N days</option><option value="month"${s.repeat === 'month' ? ' selected' : ''}>Day(s) of month</option></select><button type="button" class="x" data-rm aria-label="Remove schedule">×</button></div>
+const schedRow = s => `<div class="srow"><div class="r"><input class="s-name" aria-label="Schedule name" value="${esc(s.name)}" placeholder="Updates, Reboot, Backup..." style="flex:1 1 150px"><select class="s-mode" aria-label="Schedule type" style="flex:0 0 110px"><option value="manual"${s.mode === 'manual' ? ' selected' : ''}>Manual</option><option value="auto"${s.mode === 'auto' ? ' selected' : ''}>Automatic</option></select><select class="s-repeat" aria-label="Repeat" style="flex:0 0 150px"><option value="days"${s.repeat !== 'month' ? ' selected' : ''}>Every N days</option><option value="month"${s.repeat === 'month' ? ' selected' : ''}>Day(s) of month</option></select><button type="button" class="x" data-rm aria-label="Remove schedule">×</button></div>
   ${(() => { const n = [...new Set(hosts.flatMap(x => x.schedules.map(y => y.name)))]; return n.length ? `<div class="chips"><span class="hint">Used before:</span>${n.map(v => `<button type="button" class="chip" data-row=".s-name" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''; })()}
-  <div class="row" style="margin-top:6px"><div class="s-daysbox${s.repeat === 'month' ? ' hide' : ''}"><label>Repeat every (days)<input class="s-days" type="number" min="1" value="${esc(s.days)}" placeholder="30"></label><div class="chips">${['7', '14', '30', '90', '365'].map(d => `<button type="button" class="chip" data-row=".s-days" data-v="${d}">${d}</button>`).join('')}</div></div>
+  <div class="row" style="margin-top:6px"><div class="s-daysbox${s.repeat === 'month' ? ' hide' : ''}"><div class="lab">Repeat every (days)</div><div class="amount-picker"><input type="range" class="amount-slider" min="1" max="365" value="30" aria-label="Repeat every N days, slider"><div class="amount-stepper"><button type="button" class="step-btn" data-step="-1" aria-label="One day less">&minus;</button><input type="number" class="amount-input s-days" min="1" max="3650" value="${esc(s.days)}" placeholder="30" inputmode="numeric" aria-label="Repeat every (days)"><button type="button" class="step-btn" data-step="1" aria-label="One day more">+</button></div></div><div class="chips">${['7', '14', '30', '90', '365'].map(d => `<button type="button" class="chip" data-row=".s-days" data-v="${d}">${d}</button>`).join('')}</div></div>
   <div class="s-monthbox${s.repeat === 'month' ? '' : ' hide'}"><label>Day(s) of month<input class="s-month" value="${esc((s.monthDays || []).join(', '))}" placeholder="1, 2"></label><div class="hint">Days 29-31 use the last day of shorter months.</div></div>
   <div><label>First run / start from<input class="s-start" type="date" value="${esc(s.start)}"></label></div>
   <div><label>Time window / note<input class="s-note" value="${esc(s.note)}" placeholder="Sundays 03:00"></label></div></div>
   ${s.last ? `<div class="r"><label style="margin:0">Last done<input class="s-last" type="date" value="${esc(s.last)}"></label></div>` : ''}</div>`;
-const addrRow = a => `<div class="arow"><div class="r"><input class="a-net" value="${esc(a.net)}" placeholder="Network" style="flex:0 0 110px"><input class="a-ip" value="${esc(a.ip)}" placeholder="IP address" style="flex:1 1 120px"><input class="a-dns" value="${esc(a.dns)}" placeholder="DNS name" style="flex:1 1 140px"><button type="button" class="x" data-rm aria-label="Remove address">×</button></div>${nets().length ? `<div class="chips">${nets().map(n => `<button type="button" class="chip" data-row=".a-net" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}<div class="hint a-hint"></div></div>`;
-const epRow = e => `<div class="erow"><div class="r"><input class="e-label" value="${esc(e.label)}" placeholder="Function (Web UI, SSH...)" style="flex:2 1 150px"><select class="e-scheme" data-prev="${e.scheme}" style="flex:0 0 84px">${SCHEMES.map(x => `<option${x === e.scheme ? ' selected' : ''}>${x}</option>`).join('')}</select><input class="e-port" value="${esc(e.port)}" placeholder="${e.scheme === 'url' ? 'Full URL' : (DEF[e.scheme] || 'Port')}" style="flex:1 1 90px"><input class="e-path${e.scheme === 'url' ? ' hide' : ''}" value="${esc(e.path)}" placeholder="${e.scheme === 'ssh' ? 'Username' : '/path'}" style="flex:1 1 90px"><button type="button" class="x" data-rm aria-label="Remove endpoint">×</button></div></div>`;
+const addrRow = a => `<div class="arow"><div class="r"><input class="a-net" aria-label="Network name" value="${esc(a.net)}" placeholder="Network" style="flex:0 0 110px"><input class="a-ip" aria-label="IP address" value="${esc(a.ip)}" placeholder="IP address" style="flex:1 1 120px"><input class="a-dns" aria-label="DNS name" value="${esc(a.dns)}" placeholder="DNS name" style="flex:1 1 140px"><button type="button" class="x" data-rm aria-label="Remove address">×</button></div>${nets().length ? `<div class="chips">${nets().map(n => `<button type="button" class="chip" data-row=".a-net" data-v="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}<div class="hint a-hint"></div></div>`;
+const epRow = e => `<div class="erow"><div class="r"><input class="e-label" aria-label="Function" value="${esc(e.label)}" placeholder="Function (Web UI, SSH...)" style="flex:2 1 150px"><select class="e-scheme" aria-label="Scheme" data-prev="${e.scheme}" style="flex:0 0 84px">${SCHEMES.map(x => `<option${x === e.scheme ? ' selected' : ''}>${x}</option>`).join('')}</select><input class="e-port" aria-label="Port or full URL" value="${esc(e.port)}" placeholder="${e.scheme === 'url' ? 'Full URL' : (DEF[e.scheme] || 'Port')}" style="flex:1 1 90px"><input aria-label="Path or username" class="e-path${e.scheme === 'url' ? ' hide' : ''}" value="${esc(e.path)}" placeholder="${e.scheme === 'ssh' ? 'Username' : '/path'}" style="flex:1 1 90px"><button type="button" class="x" data-rm aria-label="Remove endpoint">×</button></div></div>`;
 
-const docRow = d => `<div class="drow"><div class="r"><button type="button" class="dh" aria-label="Drag to reorder, or use the up and down arrow keys">⠿</button><input class="d-title" value="${esc(d.title)}" placeholder="Title (Compose YAML, Restart stack, Warranty...)" style="flex:1 1 150px"><button type="button" class="x" data-rm aria-label="Remove entry">×</button></div>
-  <textarea class="d-text mono" placeholder="docker compose restart&#10;Anything you want to keep and copy...">${esc(d.text)}</textarea></div>`;
+const docRow = d => `<div class="drow"><div class="r"><button type="button" class="dh" aria-label="Drag to reorder, or use the up and down arrow keys">⠿</button><input class="d-title" aria-label="Note title" value="${esc(d.title)}" placeholder="Title (Compose YAML, Restart stack, Warranty...)" style="flex:1 1 150px"><button type="button" class="x" data-rm aria-label="Remove entry">×</button></div>
+  <textarea class="d-text mono" aria-label="Note text" placeholder="docker compose restart&#10;Anything you want to keep and copy...">${esc(d.text)}</textarea></div>`;
 
 function openHost(id) {
+  if (blocked()) return;
   editingId = id || null;
   const h = hosts.find(x => x.id === id) || { name: '', emoji: '', role: '', os: '', lang: '', hardware: '', group: '', tags: [], addrs: [{ net: defNet(), ip: '', dns: '' }], endpoints: [], schedules: [], notes: [] };
   const ut = [...new Set(hosts.flatMap(x => x.tags))].sort();
@@ -610,6 +683,7 @@ function saveHost(id) {
     schedules, log: old ? old.log : [] });
   const dupe = hosts.find(o => o.id !== rec.id && o.addrs.some(a => rec.addrs.some(b => a.net === b.net && ((a.ip && a.ip === b.ip) || (a.dns && b.dns && a.dns.toLowerCase() === b.dns.toLowerCase())))));
   const i = hosts.findIndex(h => h.id === rec.id);
+  for (const k of [...openNotes]) if (k.startsWith(rec.id + ':')) openNotes.delete(k);
   if (i >= 0) hosts[i] = rec; else hosts.push(rec);
   if (!saveHosts()) return;
   closeModal(); render();
@@ -722,8 +796,8 @@ function netInfo(name, cidr) {
 const netRow = (n, pick) => {
   const c = parseCidr(n.cidr), o = c ? ipStr(c.start).split('.') : ['', '', '', ''], p = c ? c.p : 24;
   return `<div class="nrow" data-old="${esc(n.name)}"><div class="r"><input class="n-name" value="${esc(n.name)}" placeholder="LAN" style="flex:0 0 140px" aria-label="Network name"><input class="n-note" value="${esc(n.note)}" placeholder="Note (optional)" style="flex:1 1 160px" aria-label="Note"><button type="button" class="x" data-rm aria-label="Remove network">×</button></div>
-  <div class="subnet"><div class="oct">${o.map((v, i) => `${i ? '<b>.</b>' : ''}<input class="n-o" inputmode="numeric" maxlength="3" value="${v}" placeholder="${['192', '168', '1', '0'][i]}" aria-label="Address number ${i + 1}">`).join('')}<b>/</b><span class="step"><button type="button" class="btn sm" data-pstep="-1" aria-label="Smaller prefix">−</button><input class="n-pn" inputmode="numeric" maxlength="2" value="${p}" aria-label="Prefix length"><button type="button" class="btn sm" data-pstep="1" aria-label="Larger prefix">+</button></span></div>
-  <input class="n-p" type="range" min="8" max="30" value="${Math.min(30, Math.max(8, p))}" aria-label="Network size">
+  <div class="subnet"><div class="oct">${o.map((v, i) => `${i ? '<b>.</b>' : ''}<input class="n-o" inputmode="numeric" maxlength="3" value="${v}" placeholder="${['192', '168', '1', '0'][i]}" aria-label="Address number ${i + 1}">`).join('')}<b>/</b></div>
+  <div class="amount-picker"><input class="amount-slider n-p" type="range" min="8" max="30" value="${Math.min(30, Math.max(8, p))}" aria-label="Network size, slider"><div class="amount-stepper"><button type="button" class="step-btn" data-step="-1" aria-label="Smaller prefix, bigger network">&minus;</button><input class="amount-input n-pn" type="number" min="1" max="32" inputmode="numeric" value="${p}" aria-label="Prefix length"><button type="button" class="step-btn" data-step="1" aria-label="Larger prefix, smaller network">+</button></div></div>
   <div class="srange"><span>Bigger network</span><span>Smaller network</span></div>
   <div class="bits" aria-hidden="true"></div><div class="hint n-bits"></div><div class="hint n-info"></div>
   ${pick || !n.cidr ? `<div class="chips"><span class="hint">Common:</span>${STD_NETS.map(v => `<button type="button" class="chip" data-preset="${v}">${v}</button>`).join('')}</div>` : ''}</div></div>`;
@@ -732,16 +806,16 @@ function netState(r) {
   const o = [...r.querySelectorAll('.n-o')].map(i => i.value.trim()), p = +r.querySelector('.n-pn').value.trim(), filled = o.filter(Boolean).length;
   return { filled, cidr: filled === 4 && o.every(v => /^\d{1,3}$/.test(v)) && p >= 1 && p <= 32 ? `${o.join('.')}/${p}` : '' };
 }
-function netRefresh(r, from) {
+function netRefresh(r) {
   const { filled, cidr } = netState(r), pp = Math.min(32, Math.max(1, +r.querySelector('.n-pn').value || 24));
-  if (from !== 'p') r.querySelector('.n-p').value = Math.min(30, Math.max(8, pp));
+  r.querySelector('.n-p').value = Math.min(30, Math.max(8, pp)); paintPicker(pickerOf(r.querySelector('.n-p')));
   r.querySelectorAll('.n-o').forEach((i, k) => { i.classList.toggle('fix', (k + 1) * 8 <= pp); i.classList.toggle('part', k * 8 < pp && pp < (k + 1) * 8); });
   r.querySelector('.bits').innerHTML = [0, 1, 2, 3].map(k => `<span>${Array.from({ length: 8 }, (_, j) => `<i${k * 8 + j < pp ? '' : ' class="h"'}></i>`).join('')}</span>`).join('');
   r.querySelector('.n-bits').textContent = `${pp} network bits · ${32 - pp} device bits`;
   r.querySelector('.n-info').innerHTML = netInfo(r.querySelector('.n-name').value.trim(), filled ? cidr || 'x' : '');
 }
 function netNorm(r) {
-  const pn = r.querySelector('.n-pn'); pn.value = Math.min(32, Math.max(1, +pn.value || 24));
+  const pn = r.querySelector('.n-pn'); pn.value = Math.min(32, Math.max(1, parseInt(pn.value, 10) || 24));
   const os = r.querySelectorAll('.n-o'); os.forEach(i => { if (i.value) i.value = Math.min(255, +i.value); });
   const c = parseCidr(netState(r).cidr); if (c) ipStr(c.start).split('.').forEach((v, k) => { os[k].value = v; });
   netRefresh(r);
@@ -749,6 +823,7 @@ function netNorm(r) {
 function netSet(r, cidr) { const c = parseCidr(cidr); if (!c) return; ipStr(c.start).split('.').forEach((v, k) => { r.querySelectorAll('.n-o')[k].value = v; }); r.querySelector('.n-pn').value = c.p; netNorm(r); }
 const suggestNet = () => { const taken = [...document.querySelectorAll('#modal .nrow')].map(r => parseCidr(netState(r).cidr)).filter(Boolean); return STD_NETS.find(v => { const c = parseCidr(v); return !taken.some(t => c.start <= t.end && t.start <= c.end); }) || ''; };
 function openNetworks() {
+  if (blocked()) return;
   openModal(`${modalHead('Networks &amp; subnets')}
     <div id="nets">${(nets().length ? nets().map(n => netRow(netDef(n) || { name: n, cidr: '', note: '' })) : [netRow({ name: 'LAN', cidr: STD_NETS[0], note: '' }, true)]).join('')}</div><button type="button" class="btn sm" data-add="nets">+ Add network</button>
     <div class="modal-actions"><button class="btn accent" data-save>Save networks</button><button class="btn" data-close>Cancel</button></div>`, saveNetworks);
@@ -794,19 +869,23 @@ function openInfo() {
     ${box('Network map', [['Map', 'the Map button draws the connections between hosts as lines with arrows. The arrow points to the host being used, for example a router pointing to the DNS servers it uses.'], ['Connections', 'add them inside the map: pick From, To and a label such as “DNS server”. Hosts are arranged in rows automatically and only hosts with connections are shown. Each connection can belong to a network (or Auto, the one both hosts share); lines are coloured and patterned per network, and the Show selector at the top limits the map to one network and shows each host’s address on it.']])}
     ${box('Schedules and log', [['Schedules', 'recurring tasks per host such as updates, reboots or backups. Each has a name, manual or automatic, a repeat (every N days, or on specific days of the month such as the 1st and 2nd), a start date and a time window or note.'], ['Manual', 'shows when the task is due (orange within 7 days, red when overdue). Click Mark done after you have done it and the next due date counts from today.'], ['Automatic', 'only shows your note, for tasks that run by themselves.'], ['Log', 'records reboots, shutdowns, incidents, updates and notes with a time. Marking a reboot or update schedule as done adds a log entry.']])}
     ${box('Notes &amp; commands', [['Entries', 'free text for anything you want to keep and copy: location, serial number, warranty, the Docker compose YAML or useful commands. Add as many entries as you like, each with its own title. On the host card every entry is its own collapsible section with a Copy button, so only the ones you open are shown. In the Edit form, drag the ⠿ handle to change the order (or focus it and use the up and down arrow keys).']])}
-    ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. Notes and commands are included.'], ['Reset', 'deletes everything after typing RESET.']])}
+    ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. Notes and commands are included.'], ['Import', 'replaces everything stored, after a confirmation.'], ['Reset', 'deletes everything after typing RESET.']])}
     <div class="modal-actions"><button class="btn" data-close>Close</button></div>`);
 }
 
+const dataSummary = () => `${plural(hosts.length, 'host')}, ${plural(networks.length, 'network')} and ${plural(links.length, 'connection')}`;
 function openData() {
   openModal(`${modalHead('Data Config')}
-    <p>${hosts.length} host${hosts.length === 1 ? '' : 's'} stored in this browser.</p>
+    <p>${plural(hosts.length, 'host')} stored in this browser.</p>
+    <div class="hint">Configuration auto-saves to your browser.</div>
     <div class="modal-actions"><button class="btn accent" id="exportBtn">Export JSON backup</button><button class="btn" id="mdBtn">Export readable (Markdown)</button><button class="btn" id="importBtn">Import JSON</button></div>
-    <div class="hint">Importing replaces all current hosts.</div>
+    <div id="importStep" class="callout warn hide"><div>Importing replaces everything currently stored (${dataSummary()}). Export a backup first if you might need it.</div>
+    <div class="modal-actions"><button class="btn accent" id="importPick">Choose file…</button><button class="btn" id="importCancel">Cancel</button></div></div>
     <div class="danger-zone"><h3 style="color:var(--error-color);margin-top:0">Danger Zone</h3>
     <button class="btn danger" id="resetBtn">Reset all data</button>
-    <div id="resetStep" class="hide"><div class="field" style="margin-top:12px"><label for="resetInput">Type RESET to confirm. This cannot be undone.</label><input id="resetInput" autocomplete="off"></div>
-    <button class="btn danger" id="resetConfirm" disabled>Permanently delete all hosts</button></div></div>
+    <div id="resetStep" class="hide"><h4 class="danger-title">Reset Config?</h4><div class="callout err">This permanently erases ${dataSummary()} from this browser. It cannot be undone.</div>
+    <div class="field"><label for="resetInput">Type RESET to confirm:</label><input id="resetInput" autocomplete="off"></div>
+    <button class="btn danger" id="resetConfirm" disabled>Erase Everything</button></div></div>
     <div class="modal-actions"><button class="btn" data-close>Close</button></div>`);
 }
 
@@ -816,13 +895,14 @@ $('#infoBtn').onclick = openInfo;
 $('#netBtn').onclick = openNetworks;
 $('#mapBtn').onclick = () => { mapDraft.editId = ''; mapNet = curNet(); openMap(); };
 $('#dataBtn').onclick = openData;
-$('#search').oninput = render;
+$('#search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 120); };
+$('#message-area').onclick = e => e.currentTarget.classList.add('hidden');
 $('#roleFilter').onchange = render;
 $('#themeBtn').onclick = () => {
   const dark = document.body.classList.toggle('dark-mode');
   try { localStorage.setItem(STORE.theme, dark ? 'dark' : 'light'); } catch {}
 };
-$('#hosts').onclick = async e => {
+$('#hosts').onclick = e => {
   const tg = e.target.closest('[data-tag]');
   if (tg) { activeTag = activeTag === tg.dataset.tag ? '' : tg.dataset.tag; return render(); }
   const b = e.target.closest('[data-act]'); if (!b) return;
@@ -832,20 +912,23 @@ $('#hosts').onclick = async e => {
   if (b.dataset.act === 'log') openLog(id);
   if (b.dataset.act === 'sshbat') { dl('ssh-' + b.dataset.n.replace(/[^\w.-]+/g, '-') + '.bat', '@echo off\r\n' + b.dataset.v + '\r\npause\r\n', 'application/octet-stream'); showMessage('Launcher downloaded. Double-click it to open a terminal and connect.', 'info'); }
   if (b.dataset.act === 'done') {
-    const sc = h.schedules[+b.dataset.i]; if (!sc) return;
+    const sc = h.schedules[+b.dataset.i]; if (!sc || blocked()) return;
     sc.last = today();
     const ty = /restart|reboot/i.test(sc.name) ? 'reboot' : /updat|patch|upgrad/i.test(sc.name) ? 'update' : 'note';
     h.log.push({ t: nowStamp(), type: ty, text: ty === 'note' ? `${sc.name} done` : '' });
     if (saveHosts()) { render(); showMessage(`${h.name}: ${sc.name} marked as done`, 'success'); }
   }
-  if (b.dataset.act === 'copy') {
-    try { await navigator.clipboard.writeText(b.dataset.v); showMessage(b.dataset.v.length > 60 ? 'Copied to clipboard' : `Copied ${b.dataset.v}`, 'info'); }
-    catch { showMessage('Could not access the clipboard.'); }
-  }
+  if (b.dataset.act === 'copy') copyText(b.dataset.v);
+  if (b.dataset.act === 'copynote') copyText(h.notes[+b.dataset.i]?.text);
 };
+$('#hosts').addEventListener('click', e => {
+  const sm = e.target.closest('details.nt > summary'); if (!sm) return;
+  const d = sm.parentElement; setTimeout(() => { if (d.open) openNotes.add(d.dataset.key); else openNotes.delete(d.dataset.key); });
+});
 $('#tagBar').onclick = e => { const t = e.target.closest('[data-tag]'); if (t) { activeTag = activeTag === t.dataset.tag ? '' : t.dataset.tag; render(); } };
 $('#netSel').onchange = () => { layout.net = $('#netSel').value; saveHosts(); render(); };
 $('#resetOrder').onclick = () => {
+  if (blocked()) return;
   hosts.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   if (saveHosts()) { render(); showMessage('Order reset to A–Z', 'success'); }
 };
@@ -858,29 +941,31 @@ $('#overlay').onclick = e => {
     const box = $('#' + k); box.insertAdjacentHTML('beforeend', rows[k]());
     if (k === 'notes') box.lastElementChild.querySelector('.d-title').focus();
     if (k === 'nets') { netRefresh(box.lastElementChild); box.lastElementChild.querySelector('.n-name').focus(); }
+    box.lastElementChild.querySelectorAll('.amount-picker').forEach(paintPicker);
     dirty = true; return;
   }
   const rm = e.target.closest('[data-rm]');
   if (rm) { rm.closest('.arow,.erow,.srow,.drow,.nrow').remove(); dirty = true; return; }
   const ld = e.target.closest('[data-logdel]');
-  if (ld) { const h = hosts.find(x => x.id === editingId); if (h) { h.log.splice(+ld.dataset.logdel, 1); saveHosts(); render(); openLog(editingId); } return; }
+  if (ld) { if (blocked()) return; const h = hosts.find(x => x.id === editingId); if (h) { h.log.splice(+ld.dataset.logdel, 1); saveHosts(); render(); openLog(editingId); } return; }
   const ld2 = e.target.closest('[data-ldel]');
-  if (ld2) { links = links.filter(l => l.id !== ld2.dataset.ldel); if (mapDraft.editId === ld2.dataset.ldel) mapDraft.editId = ''; saveHosts(); openMap(); return; }
+  if (ld2) { if (blocked()) return; links = links.filter(l => l.id !== ld2.dataset.ldel); if (mapDraft.editId === ld2.dataset.ldel) mapDraft.editId = ''; saveHosts(); openMap(); return; }
   const le = e.target.closest('[data-ledit]');
   if (le) { mapDraft.editId = le.dataset.ledit; openMap(); return; }
   if (e.target.closest('[data-canceledit]')) { mapDraft.editId = ''; openMap(); return; }
-  const ps = e.target.closest('[data-preset],[data-pstep]');
-  if (ps) { const r = ps.closest('.nrow'); if (ps.dataset.preset) netSet(r, ps.dataset.preset); else { const pn = r.querySelector('.n-pn'); pn.value = Math.min(32, Math.max(1, (+pn.value || 24) + +ps.dataset.pstep)); netNorm(r); } dirty = true; return; }
+  const sb = e.target.closest('.step-btn'); if (sb) return stepPicker(sb);
+  const ps = e.target.closest('[data-preset]');
+  if (ps) { netSet(ps.closest('.nrow'), ps.dataset.preset); dirty = true; return; }
   const chip = e.target.closest('[data-fill],[data-row]');
   if (chip) {
     const f = chip.dataset.row ? chip.closest('.arow,.srow,.drow,.nrow').querySelector(chip.dataset.row) : $('#' + chip.dataset.fill);
     f.value = chip.hasAttribute('data-append') && f.value.trim() ? f.value.replace(/[,\s]*$/, '') + ', ' + chip.dataset.v : chip.dataset.v;
     f.focus(); dirty = true;
-    const ar = f.closest('.arow'), nr = f.closest('.nrow'); if (ar) addrHint(ar); if (nr) netRefresh(nr);
+    const ar = f.closest('.arow'), nr = f.closest('.nrow'), ap = f.closest('.amount-picker'); if (ar) addrHint(ar); if (nr) netRefresh(nr); else if (ap) paintPicker(ap);
     return;
   }
   const t = e.target.closest('button'); if (!t) return;
-  if (t.hasAttribute('data-save') && modalSave) modalSave();
+  if (t.hasAttribute('data-save')) runSave();
   if (t.hasAttribute('data-delete')) {
     const id = editingId;
     if (!deleteArmed) { deleteArmed = true; t.textContent = 'Click again to confirm'; showMessage('Click “Delete host” again to permanently remove it.', 'warning'); setTimeout(() => { deleteArmed = false; if (t.isConnected) t.textContent = 'Delete host'; }, MESSAGE_DURATION_LONG); return; }
@@ -889,30 +974,38 @@ $('#overlay').onclick = e => {
     if (saveHosts()) { closeModal(); render(); showMessage(`Deleted ${gone ? gone.name : 'host'}`, 'success'); }
   }
   if (t.id === 'exportBtn') {
-    const blob = new Blob([JSON.stringify({ app: 'network-manager', schema: SCHEMA, exported: new Date().toISOString(), hosts, layout, links, networks }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `web-network-manager-backup-${today()}.json`;
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    dl(`web-network-manager-backup-${today()}.json`, JSON.stringify({ app: 'network-manager', schema: SCHEMA, exported: new Date().toISOString(), hosts, layout, links, networks }, null, 2), 'application/json');
     showMessage('Backup exported', 'success');
   }
-  if (t.id === 'importBtn') $('#importFile').click();
+  if (t.id === 'importBtn') { if (hosts.length || networks.length || links.length) $('#importStep').classList.remove('hide'); else $('#importFile').click(); }
+  if (t.id === 'importPick') $('#importFile').click();
+  if (t.id === 'importCancel') $('#importStep').classList.add('hide');
   if (t.id === 'mdBtn') { dl(`network-inventory-${today()}.md`, toMarkdown(), 'text/markdown'); showMessage('Readable export created', 'success'); }
   if (t.id === 'resetBtn') { $('#resetStep').classList.remove('hide'); t.classList.add('hide'); $('#resetInput').focus(); }
-  if (t.id === 'resetConfirm' && $('#resetInput').value === 'RESET') {
+  if (t.id === 'resetConfirm' && $('#resetInput').value === 'RESET' && !blocked()) {
     hosts = []; layout = sanitizeLayout(); links = []; networks = []; if (saveHosts()) { closeModal(); render(); showMessage('All data was reset', 'success'); }
   }
 };
 $('#overlay').onpointerdown = e => { downOnBackdrop = e.target.id === 'overlay'; };
 $('#overlay').oninput = e => {
-  if (e.target.matches('.a-ip,.a-net')) addrHint(e.target.closest('.arow'));
-  if (e.target.matches('.n-name,.n-o,.n-pn,.n-p')) {
-    const t = e.target, r = t.closest('.nrow');
+  const t = e.target;
+  if (t.matches('.amount-slider')) {  /* slider drives the number box; the box's own input event updates everything else */
+    const p = pickerOf(t), box = p.querySelector('.amount-input'); box.value = t.value; paintPicker(p);
+    box.dispatchEvent(new Event('input', { bubbles: true })); return;
+  }
+  if (t.matches('.amount-input')) paintPicker(pickerOf(t));
+  if (t.matches('.a-ip,.a-net')) addrHint(t.closest('.arow'));
+  if (t.matches('.n-name,.n-o,.n-pn')) {
+    const r = t.closest('.nrow');
     if (t.matches('.n-o')) { const dot = t.value.includes('.'); t.value = t.value.replace(/\D/g, '').slice(0, 3); const os = [...r.querySelectorAll('.n-o')], k = os.indexOf(t); if (((dot && t.value) || t.value.length === 3) && os[k + 1]) { os[k + 1].focus(); os[k + 1].select(); } }
-    if (t.matches('.n-pn')) t.value = t.value.replace(/\D/g, '').slice(0, 2);
-    if (t.matches('.n-p')) r.querySelector('.n-pn').value = t.value;
-    netRefresh(r, t.matches('.n-p') ? 'p' : '');
-  } if (e.target.id !== 'resetInput') dirty = true; if (e.target.id === 'resetInput') $('#resetConfirm').disabled = e.target.value !== 'RESET'; };
+    netRefresh(r);
+  }
+  if (t.id === 'resetInput') $('#resetConfirm').disabled = t.value !== 'RESET';
+  else dirty = true;
+};
 $('#overlay').onchange = e => {
   const t = e.target; dirty = true;
+  if (t.matches('.amount-input')) { const v = parseInt(t.value, 10); if (!isNaN(v)) t.value = Math.min(+t.max || v, Math.max(+t.min || 1, v)); paintPicker(pickerOf(t)); }
   if (t.matches('.n-o,.n-pn,.n-p')) netNorm(t.closest('.nrow'));
   if (t.id === 'm-net') { mapDraft = { ...mapDraft, from: $('#m-from').value, label: $('#m-label').value, net: '' }; mapNet = t.value; openMap(); return; }
   if (t.classList.contains('s-repeat')) { const r = t.closest('.srow'), m = t.value === 'month'; r.querySelector('.s-daysbox').classList.toggle('hide', m); r.querySelector('.s-monthbox').classList.toggle('hide', !m); }
@@ -934,6 +1027,7 @@ $('#overlay').onpaste = e => {
 $('#importFile').onchange = async e => {
   const file = e.target.files[0]; e.target.value = '';
   if (!file) return;
+  if (file.size > 5 * 1024 * 1024) return showMessage('Import failed: the file is larger than 5 MB.');
   try {
     if (storageLocked) return saveHosts();
     const data = JSON.parse(await file.text());
@@ -950,7 +1044,8 @@ document.addEventListener('keydown', e => {
   const open = !$('#overlay').classList.contains('hide');
   if (e.key === 'Escape' && open) return e.isComposing ? undefined : softClose();
   if (open) {
-    if (modalSave && ((e.key === 'Enter' && e.ctrlKey) || (e.key === 'Enter' && e.target.tagName === 'INPUT'))) { e.preventDefault(); modalSave(); }
+    if (e.key === 'Tab') trapFocus(e);
+    else if (e.key === 'Enter' && !e.isComposing && modalSave && (e.ctrlKey || e.metaKey || (e.target.tagName === 'INPUT' && e.target.type !== 'range'))) { e.preventDefault(); runSave(); }
     return;
   }
   const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
@@ -965,6 +1060,7 @@ const filtered = () => !!($('#search').value.trim() || $('#roleFilter').value ||
 function startDrag() {
   if (!drag || drag.active) return;
   if (filtered()) { showMessage('Clear the search and role filter to reorder.', 'info'); drag = null; return; }
+  if (blocked()) { clearTimeout(drag.timer); drag = null; return; }
   drag.active = true; clearTimeout(drag.timer);
   drag.card.classList.add('dragging');
   document.body.classList.add('is-dragging');
