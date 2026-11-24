@@ -186,6 +186,7 @@ details.fs[open] > summary::before { content:'▾ '; }
 /* Floating message banner */
 .message-area { position:absolute; top:0; left:0; right:0; min-height:80px; z-index:1100; border-radius:8px; padding:10px 15px; font-family:'Consolas','Monaco',monospace; font-size:.9em; font-weight:bold; line-height:1.6; text-align:left; white-space:pre-wrap; word-wrap:break-word; border:1px solid transparent; opacity:1; visibility:visible; transition:opacity .3s,visibility .3s; }
 .message-area.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+.message-area [data-undo] { margin-left:12px; vertical-align:middle; }
 .message-area.pinned { position:fixed; top:8px; }  /* container scrolled off screen: keep the banner visible */
 .message-area.error { background:color-mix(in srgb,var(--error-color) 10%,white); color:var(--error-color); border-color:var(--error-color); }
 .message-area.warning { background:color-mix(in srgb,var(--warning-color) 10%,white); color:var(--warning-color); border-color:var(--warning-color); }
@@ -243,7 +244,8 @@ footer .footer-portfolio { margin-top:8px; font-size:.85em; opacity:.7; }
 /* ===== Constants and state ===== */
 /* Saved-data format: every save writes SCHEMA. To change the format, bump SCHEMA and add
    MIGRATIONS[<previous version>] (see "Data model"). A build never overwrites newer data. */
-const STORE = { hosts: 'netmanager.hosts', layout: 'netmanager.layout', links: 'netmanager.links', networks: 'netmanager.networks', schema: 'netmanager.schema', backup: 'netmanager.backup', theme: 'netmanager.theme' };
+const STORE = { hosts: 'netmanager.hosts', layout: 'netmanager.layout', links: 'netmanager.links', networks: 'netmanager.networks', schema: 'netmanager.schema', backup: 'netmanager.backup', theme: 'netmanager.theme', exported: 'netmanager.exported' };
+const UNDO_DURATION = 6000;
 const SCHEMA = 4;
 const MESSAGE_DURATION_SHORT = 2000, MESSAGE_DURATION_LONG = 3500;
 const SCHEMES = ['http', 'https', 'ssh', 'rdp', 'vnc', 'smb', 'ftp', 'url'];
@@ -253,10 +255,12 @@ const $ = s => document.querySelector(s);
 let hosts = [], layout = { net: '' }, links = [], networks = [], mapNet = '', activeTag = '', view = { net: '', multi: false };
 let modalSave = null, dirty = false, downOnBackdrop = false, deleteArmed = false, editingId = null, mapDraft = { from: '', label: '', editId: '', net: '' };
 let storageLocked = false, pendingBackup = null, unreadableData = false, lastFocus = null, searchTimer = 0;
+let staleTab = false, undoFn = null, importMode = 'replace';  /* staleTab: another tab saved while a dialog was open here */
 
 /* ===== Utilities ===== */
 function showMessage(message, type = 'error') {
   const area = $('#message-area');
+  undoFn = null;
   area.textContent = message;
   area.className = `message-area ${type}`;
   const box = area.parentElement.getBoundingClientRect(), pin = box.top < 0;  /* keep the banner visible when the page is scrolled down */
@@ -266,6 +270,16 @@ function showMessage(message, type = 'error') {
   const d = (type === 'success' || type === 'info') ? MESSAGE_DURATION_SHORT : MESSAGE_DURATION_LONG;
   area.timeoutId = setTimeout(() => area.classList.add('hidden'), d);
 }
+/* Success banner with an Undo button; fn puts the removed item back */
+function showUndo(message, fn) {
+  showMessage(message, 'success');
+  const area = $('#message-area'), b = document.createElement('button');
+  b.className = 'btn sm'; b.dataset.undo = ''; b.textContent = 'Undo';
+  area.append(b); undoFn = fn;
+  clearTimeout(area.timeoutId);
+  area.timeoutId = setTimeout(() => { area.classList.add('hidden'); undoFn = null; }, UNDO_DURATION);
+}
+const lastExport = () => { try { const v = localStorage.getItem(STORE.exported); return DATE_RE.test(v || '') ? v : ''; } catch { return ''; } };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const str = (v, n = 200) => String(v ?? '').slice(0, n).trim();
 const today = () => new Date().toLocaleDateString('sv-SE');
@@ -424,10 +438,21 @@ function boot() {
   if (storageLocked) showMessage('This data was saved by a newer version of the app.\nIt is shown read-only. Update the page to edit it.', 'warning');
   else if (unreadableData) showMessage('Saved hosts could not be read.\nThe raw data is kept in netmanager.backup once you save.', 'warning');
 }
-const blocked = () => { if (storageLocked) showMessage('Read-only: the saved data comes from a newer version of this app.', 'warning'); return storageLocked; };
+const STALE_MSG = 'The data was changed in another tab.\nClose this dialog to load the latest version, then make your change again.';
+const blocked = () => {
+  if (storageLocked) showMessage('Read-only: the saved data comes from a newer version of this app.', 'warning');
+  else if (staleTab) showMessage(STALE_MSG, 'warning');
+  return storageLocked || staleTab;
+};
+/* Another tab saved: reload so this tab never overwrites newer data with its old copy */
+function reloadFromStorage() {
+  staleTab = false;
+  boot(); render();
+}
 function runSave() { if (modalSave && !blocked()) modalSave(); }
 function saveHosts() {
   if (storageLocked) { showMessage('Saving is disabled: the saved data comes from a newer version of this app.'); return false; }
+  if (staleTab) { showMessage(STALE_MSG, 'warning'); return false; }
   try {
     if (pendingBackup) { try { localStorage.setItem(STORE.backup, JSON.stringify(pendingBackup)); } catch {} pendingBackup = null; }
     localStorage.setItem(STORE.hosts, JSON.stringify(hosts));
@@ -571,7 +596,7 @@ function openModal(html, onSave) {
   const fresh = $('#overlay').classList.contains('hide'), m = $('#modal');
   if (fresh) lastFocus = document.activeElement;
   modalSave = onSave || null; deleteArmed = false; dirty = false;
-  m.className = 'modal';
+  m.className = 'modal'; m.dataset.view = '';
   m.innerHTML = html;
   m.querySelectorAll('.amount-picker').forEach(paintPicker);
   $('#overlay').classList.remove('hide');
@@ -603,7 +628,12 @@ function softClose() {
   if (dirty) { dirty = false; return showMessage('You have unsaved changes.\nPress Escape or click outside again to discard them, or use Save.', 'warning'); }
   closeModal();
 }
-function closeModal() { $('#overlay').classList.add('hide'); $('#modal').innerHTML = ''; modalSave = null; if (lastFocus?.isConnected) lastFocus.focus?.(); lastFocus = null; }
+function closeModal() {
+  $('#overlay').classList.add('hide'); $('#modal').innerHTML = ''; $('#modal').dataset.view = ''; modalSave = null;
+  if (staleTab) reloadFromStorage();
+  if (lastFocus?.isConnected) lastFocus.focus?.(); lastFocus = null;
+}
+const modalView = () => $('#overlay').classList.contains('hide') ? '' : $('#modal').dataset.view;
 const modalHead = t => `<h2><span id="modal-title">${t}</span><button class="x" data-close aria-label="Close">×</button></h2>`;
 
 const EMOJI = ['🖥️','💻','🗄️','💾','📡','🛜','🔌','🧱','🛡️','🔥','🍓','📺','📱','🏠','☁️','🔒','🔑','🧪','🎮','📦','🌐','⚙️','🔧','🛠️','📷','🎥','🖨️','🔊','🎵','💡','🌡️','⚡','🔋','🕹️','📁','📂','🗂️','🧠','🤖','🐧','🐳','🪟','🍎','🐙','📊','📈','📬','⏰','🧭','🚨','🛰️','📶','🔔','🧰','💽','📀','🧮','🌍','🔭','🎛️','🧯'];
@@ -707,6 +737,7 @@ function openLog(id) {
     h.log = h.log.slice(-100);
     if (saveHosts()) { render(); showMessage('Log entry added', 'success'); openLog(id); }
   });
+  $('#modal').dataset.view = 'log:' + id;
 }
 
 function mapSvg(ids, ls, byId, netOf, sel) {
@@ -772,7 +803,7 @@ function openMap() {
     ${used.length ? `<div class="chips">${used.map(v => `<button type="button" class="chip" data-fill="m-label" data-v="${esc(v)}">${esc(v)}</button>`).join('')}</div>` : ''}</div>
     ${ns.length > 1 ? `<div class="field"><label for="m-lnet">Network</label><select id="m-lnet">${nopt(lnet, 'Auto (network both hosts share)')}</select><div class="hint">The network this connection runs over. It sets the line colour and which network view shows it.</div></div>` : ''}
     <div class="modal-actions"><button class="btn accent" data-save>${ed ? 'Save changes' : 'Add connection'}</button>${ed ? '<button class="btn" data-canceledit>Cancel edit</button>' : ''}<button class="btn" data-close>Close</button></div>`, addLink);
-  $('#modal').classList.add('wide');
+  $('#modal').classList.add('wide'); $('#modal').dataset.view = 'map';
   if (ed) $('#m-label').focus();
 }
 function addLink() {
@@ -869,18 +900,24 @@ function openInfo() {
     ${box('Network map', [['Map', 'the Map button draws the connections between hosts as lines with arrows. The arrow points to the host being used, for example a router pointing to the DNS servers it uses.'], ['Connections', 'add them inside the map: pick From, To and a label such as “DNS server”. Hosts are arranged in rows automatically and only hosts with connections are shown. Each connection can belong to a network (or Auto, the one both hosts share); lines are coloured and patterned per network, and the Show selector at the top limits the map to one network and shows each host’s address on it.']])}
     ${box('Schedules and log', [['Schedules', 'recurring tasks per host such as updates, reboots or backups. Each has a name, manual or automatic, a repeat (every N days, or on specific days of the month such as the 1st and 2nd), a start date and a time window or note.'], ['Manual', 'shows when the task is due (orange within 7 days, red when overdue). Click Mark done after you have done it and the next due date counts from today.'], ['Automatic', 'only shows your note, for tasks that run by themselves.'], ['Log', 'records reboots, shutdowns, incidents, updates and notes with a time. Marking a reboot or update schedule as done adds a log entry.']])}
     ${box('Notes &amp; commands', [['Entries', 'free text for anything you want to keep and copy: location, serial number, warranty, the Docker compose YAML or useful commands. Add as many entries as you like, each with its own title. On the host card every entry is its own collapsible section with a Copy button, so only the ones you open are shown. In the Edit form, drag the ⠿ handle to change the order (or focus it and use the up and down arrow keys).']])}
-    ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. Notes and commands are included.'], ['Import', 'replaces everything stored, after a confirmation.'], ['Reset', 'deletes everything after typing RESET.']])}
+    ${box('Data', [['Data Config', 'export a JSON backup (restorable) or a readable Markdown inventory. Notes and commands are included.'], ['Import', '“Replace all” replaces everything stored. “Add new hosts” keeps your data and adds only the hosts (matched by name), networks and connections that are not here yet.'], ['Last backup', 'Data Config shows the date you last exported a JSON backup from this browser.'],['Undo', 'deleting a host, a log entry or a connection shows an Undo button for a few seconds.'], ['Several tabs', 'changes saved in another tab are loaded here automatically. If a dialog is open, saving is blocked until you close it, so an old copy never overwrites newer data.'], ['Reset', 'deletes everything after typing RESET.']])}
     <div class="modal-actions"><button class="btn" data-close>Close</button></div>`);
 }
 
 const dataSummary = () => `${plural(hosts.length, 'host')}, ${plural(networks.length, 'network')} and ${plural(links.length, 'connection')}`;
+function backupText() {
+  const d = lastExport();
+  if (!d) return 'No backup has been exported from this browser yet.';
+  const n = dayNum(today()) - dayNum(d);
+  return `Last backup: ${d} (${n <= 0 ? 'today' : plural(n, 'day') + ' ago'}).`;
+}
 function openData() {
   openModal(`${modalHead('Data Config')}
     <p>${plural(hosts.length, 'host')} stored in this browser.</p>
-    <div class="hint">Configuration auto-saves to your browser.</div>
+    <div class="hint">Configuration auto-saves to your browser. ${backupText()}</div>
     <div class="modal-actions"><button class="btn accent" id="exportBtn">Export JSON backup</button><button class="btn" id="mdBtn">Export readable (Markdown)</button><button class="btn" id="importBtn">Import JSON</button></div>
-    <div id="importStep" class="callout warn hide"><div>Importing replaces everything currently stored (${dataSummary()}). Export a backup first if you might need it.</div>
-    <div class="modal-actions"><button class="btn accent" id="importPick">Choose file…</button><button class="btn" id="importCancel">Cancel</button></div></div>
+    <div id="importStep" class="callout warn hide"><div><b>Replace all</b> erases everything currently stored (${dataSummary()}) and loads the file instead. Export a backup first if you might need it.<br><b>Add new hosts</b> keeps your data and only adds the hosts, networks and connections from the file that are not here yet (hosts are matched by name).</div>
+    <div class="modal-actions"><button class="btn accent" id="importMerge">Add new hosts…</button><button class="btn danger" id="importPick">Replace all…</button><button class="btn" id="importCancel">Cancel</button></div></div>
     <div class="danger-zone"><h3 style="color:var(--error-color);margin-top:0">Danger Zone</h3>
     <button class="btn danger" id="resetBtn">Reset all data</button>
     <div id="resetStep" class="hide"><h4 class="danger-title">Reset Config?</h4><div class="callout err">This permanently erases ${dataSummary()} from this browser. It cannot be undone.</div>
@@ -896,7 +933,12 @@ $('#netBtn').onclick = openNetworks;
 $('#mapBtn').onclick = () => { mapDraft.editId = ''; mapNet = curNet(); openMap(); };
 $('#dataBtn').onclick = openData;
 $('#search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(render, 120); };
-$('#message-area').onclick = e => e.currentTarget.classList.add('hidden');
+$('#message-area').onclick = e => {
+  e.currentTarget.classList.add('hidden');
+  const fn = e.target.closest('[data-undo]') ? undoFn : null;
+  undoFn = null;
+  if (fn && !blocked()) fn();
+};
 $('#roleFilter').onchange = render;
 $('#themeBtn').onclick = () => {
   const dark = document.body.classList.toggle('dark-mode');
@@ -947,9 +989,35 @@ $('#overlay').onclick = e => {
   const rm = e.target.closest('[data-rm]');
   if (rm) { rm.closest('.arow,.erow,.srow,.drow,.nrow').remove(); dirty = true; return; }
   const ld = e.target.closest('[data-logdel]');
-  if (ld) { if (blocked()) return; const h = hosts.find(x => x.id === editingId); if (h) { h.log.splice(+ld.dataset.logdel, 1); saveHosts(); render(); openLog(editingId); } return; }
+  if (ld) {
+    if (blocked()) return;
+    const hid = editingId, h = hosts.find(x => x.id === hid); if (!h) return;
+    const [gone] = h.log.splice(+ld.dataset.logdel, 1);
+    if (saveHosts()) {
+      render(); openLog(hid);
+      if (gone) showUndo('Log entry deleted', () => {
+        const hh = hosts.find(x => x.id === hid); if (!hh) return;
+        hh.log.push(gone);
+        if (saveHosts()) { render(); if (modalView() === 'log:' + hid) openLog(hid); showMessage('Log entry restored', 'success'); }
+      });
+    }
+    return;
+  }
   const ld2 = e.target.closest('[data-ldel]');
-  if (ld2) { if (blocked()) return; links = links.filter(l => l.id !== ld2.dataset.ldel); if (mapDraft.editId === ld2.dataset.ldel) mapDraft.editId = ''; saveHosts(); openMap(); return; }
+  if (ld2) {
+    if (blocked()) return;
+    const gone = links.find(l => l.id === ld2.dataset.ldel);
+    links = links.filter(l => l !== gone); if (mapDraft.editId === ld2.dataset.ldel) mapDraft.editId = '';
+    if (saveHosts()) {
+      openMap();
+      if (gone) showUndo('Connection deleted', () => {
+        if (!hosts.some(h => h.id === gone.from) || !hosts.some(h => h.id === gone.to) || links.some(l => l.id === gone.id)) return;
+        links.push(gone);
+        if (saveHosts()) { if (modalView() === 'map') openMap(); showMessage('Connection restored', 'success'); }
+      });
+    }
+    return;
+  }
   const le = e.target.closest('[data-ledit]');
   if (le) { mapDraft.editId = le.dataset.ledit; openMap(); return; }
   if (e.target.closest('[data-canceledit]')) { mapDraft.editId = ''; openMap(); return; }
@@ -969,16 +1037,26 @@ $('#overlay').onclick = e => {
   if (t.hasAttribute('data-delete')) {
     const id = editingId;
     if (!deleteArmed) { deleteArmed = true; t.textContent = 'Click again to confirm'; showMessage('Click “Delete host” again to permanently remove it.', 'warning'); setTimeout(() => { deleteArmed = false; if (t.isConnected) t.textContent = 'Delete host'; }, MESSAGE_DURATION_LONG); return; }
-    const gone = hosts.find(h => h.id === id);
-    hosts = hosts.filter(h => h.id !== id); links = links.filter(l => l.from !== id && l.to !== id);
-    if (saveHosts()) { closeModal(); render(); showMessage(`Deleted ${gone ? gone.name : 'host'}`, 'success'); }
+    const at = hosts.findIndex(h => h.id === id), gone = hosts[at], goneLinks = links.filter(l => l.from === id || l.to === id);
+    if (!gone) return;
+    hosts = hosts.filter(h => h.id !== id); links = links.filter(l => !goneLinks.includes(l));
+    if (saveHosts()) {
+      closeModal(); render();
+      showUndo(`Deleted ${gone.name}`, () => {
+        if (hosts.some(h => h.id === id)) return;
+        hosts.splice(Math.min(at, hosts.length), 0, gone);
+        links.push(...goneLinks.filter(l => hosts.some(h => h.id === l.from) && hosts.some(h => h.id === l.to)));
+        if (saveHosts()) { render(); showMessage(`Restored ${gone.name}`, 'success'); }
+      });
+    }
   }
   if (t.id === 'exportBtn') {
     dl(`web-network-manager-backup-${today()}.json`, JSON.stringify({ app: 'network-manager', schema: SCHEMA, exported: new Date().toISOString(), hosts, layout, links, networks }, null, 2), 'application/json');
+    try { localStorage.setItem(STORE.exported, today()); } catch {}
     showMessage('Backup exported', 'success');
   }
-  if (t.id === 'importBtn') { if (hosts.length || networks.length || links.length) $('#importStep').classList.remove('hide'); else $('#importFile').click(); }
-  if (t.id === 'importPick') $('#importFile').click();
+  if (t.id === 'importBtn') { if (hosts.length || networks.length || links.length) $('#importStep').classList.remove('hide'); else { importMode = 'replace'; $('#importFile').click(); } }
+  if (t.id === 'importPick' || t.id === 'importMerge') { importMode = t.id === 'importMerge' ? 'merge' : 'replace'; $('#importFile').click(); }
   if (t.id === 'importCancel') $('#importStep').classList.add('hide');
   if (t.id === 'mdBtn') { dl(`network-inventory-${today()}.md`, toMarkdown(), 'text/markdown'); showMessage('Readable export created', 'success'); }
   if (t.id === 'resetBtn') { $('#resetStep').classList.remove('hide'); t.classList.add('hide'); $('#resetInput').focus(); }
@@ -1024,18 +1102,40 @@ $('#overlay').onpaste = e => {
   e.preventDefault(); const r = e.target.closest('.nrow'); r.querySelectorAll('.n-o').forEach((i, k) => { i.value = m[k + 1]; });
   if (m[5]) r.querySelector('.n-pn').value = m[5]; netNorm(r); dirty = true;
 };
+/* Merge import: add hosts that are not here yet (same id or same name = already here, left unchanged),
+   networks with new names, and connections between the resulting hosts that do not exist yet. */
+function mergeData(d) {
+  const ids = new Set(hosts.map(h => h.id)), byName = new Map(hosts.map(h => [h.name.toLowerCase(), h.id])), map = new Map(), add = [];
+  d.hosts.forEach(h => {
+    const m = ids.has(h.id) ? h.id : byName.get(h.name.toLowerCase());
+    if (m) map.set(h.id, m); else { add.push(h); map.set(h.id, h.id); ids.add(h.id); byName.set(h.name.toLowerCase(), h.id); }
+  });
+  const nn = new Set(networks.map(n => n.name)), newNets = d.networks.filter(n => !nn.has(n.name));
+  hosts = [...hosts, ...add]; networks = cleanNetworks([...networks, ...newNets]);
+  const key = l => `${l.from}\n${l.to}\n${l.label.toLowerCase()}\n${l.net}`, seen = new Set(links.map(key)), lids = new Set(links.map(l => l.id));
+  const newLinks = d.links.map(l => ({ ...l, from: map.get(l.from), to: map.get(l.to) }))
+    .filter(l => l.from && l.to && l.from !== l.to && !seen.has(key(l)) && seen.add(key(l)))
+    .map(l => lids.has(l.id) ? { ...l, id: uid() } : l);
+  const before = links.length; links = sanitizeLinks([...links, ...newLinks]);
+  return { hosts: add.length, skipped: d.hosts.length - add.length, networks: networks.length - nn.size, links: links.length - before };
+}
 $('#importFile').onchange = async e => {
   const file = e.target.files[0]; e.target.value = '';
   if (!file) return;
   if (file.size > 5 * 1024 * 1024) return showMessage('Import failed: the file is larger than 5 MB.');
   try {
-    if (storageLocked) return saveHosts();
+    if (blocked()) return;
     const data = JSON.parse(await file.text());
     const arr = Array.isArray(data) ? data : data.hosts;
     if (!Array.isArray(arr)) throw new Error();
     const from = Number.isInteger(data.schema) ? data.schema : 0;
     if (from > SCHEMA) return showMessage('This backup was made by a newer version of the app.\nUpdate the page before importing it.');
     const d = normalize(migrate({ hosts: arr.filter(h => h && typeof h === 'object' && h.name), layout: data.layout, links: data.links, networks: data.networks }, from));
+    if (importMode === 'merge') {
+      const r = mergeData(d);
+      if (saveHosts()) { closeModal(); render(); showMessage(`Added ${plural(r.hosts, 'host')}, ${plural(r.networks, 'network')} and ${plural(r.links, 'connection')}.${r.skipped ? `\n${plural(r.skipped, 'host')} already here ${r.skipped === 1 ? 'was' : 'were'} left unchanged.` : ''}`, 'success'); }
+      return;
+    }
     hosts = d.hosts; layout = d.layout; links = d.links; networks = d.networks;
     if (saveHosts()) { closeModal(); render(); showMessage(`Imported ${hosts.length} host${hosts.length === 1 ? '' : 's'}`, 'success'); }
   } catch { showMessage('Import failed: the file is not a valid Web Network Manager backup.'); }
@@ -1160,6 +1260,17 @@ $('#overlay').addEventListener('keydown', e => {
 
 /* ===== Init ===== */
 try { if (localStorage.getItem(STORE.theme) === 'light') document.body.classList.remove('dark-mode'); } catch {}
+/* Two tabs: when another tab saves, reload here. With a dialog open, block saving until it is closed
+   (closing reloads), so an old copy in this tab can never overwrite the newer data. */
+let syncTimer = 0;
+window.addEventListener('storage', e => {
+  if (e.key !== null && ![STORE.hosts, STORE.layout, STORE.links, STORE.networks, STORE.schema].includes(e.key)) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {  /* one save writes several keys: react once */
+    if (!$('#overlay').classList.contains('hide')) { staleTab = true; showMessage(STALE_MSG, 'warning'); }
+    else { reloadFromStorage(); showMessage('Updated with changes made in another tab.', 'info'); }
+  }, 100);
+});
 boot();
 render();
 </script>
